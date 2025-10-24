@@ -1,0 +1,57 @@
+from enum import StrEnum
+
+
+class ObjectType(StrEnum):
+    ACTIVITY = "activity"
+    ATHLETE = "athlete"
+
+class AspectType(StrEnum):
+    CREATE = "create"
+    UPDATE = "update"
+    DELETE = "delete"
+
+class ActivityType(StrEnum):
+    RUN = "Run"
+    ALPINESKI ="AlpineSki"
+    BACKCOUNTRYSKI ="BackcountrySki"
+    CANOEING ="Canoeing"
+    CROSSFIT ="Crossfit"
+    EBIKERIDE ="EBikeRide"
+    ELLIPTICAL ="Elliptical"
+    GOLF ="Golf"
+    HANDCYCLE ="Handcycle"
+    HIKE ="Hike"
+    ICESKATE ="IceSkate"
+    INLINESKATE ="InlineSkate"
+    KAYAKING ="Kayaking"
+    KITESURF ="Kitesurf"
+    NORDICSKI ="NordicSki"
+    RIDE ="Ride"
+    ROCKCLIMBING ="RockClimbing"
+    ROLLERSKI ="RollerSki"
+    ROWING ="Rowing"
+    SAIL ="Sail"
+    SKATEBOARD ="Skateboard"
+    SNOWBOARD ="Snowboard"
+    SNOWSHOE ="Snowshoe"
+    SOCCER ="Soccer"
+    STAIRSTEPPER ="StairStepper"
+    STANDUPPADDLING ="StandUpPaddling"
+    SURFING ="Surfing"
+    SWIM ="Swim"
+    VELOMOBILE ="Velomobile"
+    VIRTUALRIDE ="VirtualRide"
+    VIRTUALRUN ="VirtualRun"
+    WALK ="Walk"
+    WEIGHTTRAINING ="WeightTraining"
+    WHEELCHAIR ="Wheelchair"
+    WINDSURF ="Windsurf"
+    WORKOUT ="Workout"
+    YOGA ="Yoga"
+
+class InstagramContainerStatus(StrEnum):
+    EXPIRED="EXPIRED"
+    ERROR="ERROR"
+    FINISHED="FINISHED"
+    IN_PROGRESS="IN_PROGRESS"
+    PUBLISHED="PUBLISHED"

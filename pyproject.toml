@@ -1,0 +1,15 @@
+[project]
+name = "jog-post"
+version = "0.1.0"
+description = "Default template for PDM package"
+authors = [
+    {name = "onlypearson", email = "bluewings109@gmail.com"},
+]
+dependencies = ["fastapi>=0.115.14", "sqlalchemy>=2.0.41", "pydantic>=2.11.7", "uvicorn[standard]>=0.34.3", "dependency-injector>=4.48.1", "psycopg2-binary>=2.9.10", "httpx>=0.28.1", "asyncpg>=0.30.0", "greenlet>=3.2.4", "polyline>=2.0.3", "pillow>=11.3.0", "cloudinary>=1.44.1", "pydantic-settings>=2.11.0", "python-dotenv>=1.1.1", "aiomysql>=0.2.0"]
+requires-python = "==3.12.*"
+readme = "README.md"
+license = {text = "MIT"}
+
+
+[tool.pdm]
+distribution = false
