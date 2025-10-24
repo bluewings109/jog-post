@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     # instagram
     instagram_app_name: str
     instagram_app_id: int
-    instagram_app_secret: int
+    instagram_app_secret: str
 
     model_config = SettingsConfigDict(
         env_file=None, # main에서 load_dotenv() 로 파일내용은 이미 환경변수로 로드됨
