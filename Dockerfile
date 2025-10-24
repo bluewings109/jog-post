@@ -28,5 +28,8 @@ COPY src /app/src
 # 포트 노출 (FastAPI 기본 포트)
 EXPOSE 7070
 
+# s6-overlay entrypoint 유지
+ENTRYPOINT ["/init"]
+
 # 컨테이너 실행 명령
 CMD ["/app/run.sh"]
