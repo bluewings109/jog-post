@@ -6,7 +6,12 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from org.onlypearson.jogpost.common.settings import settings
 
 
-engine = create_async_engine(settings.db_url, echo=True)
+engine = create_async_engine(
+    settings.db_url,
+    pool_pre_ping=True,
+    pool_recycle=1800,
+    echo=True
+)
 AsyncSessionLocal = async_sessionmaker(bind=engine, expire_on_commit=False)
 
 async def get_session():
