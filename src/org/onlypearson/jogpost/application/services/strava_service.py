@@ -73,7 +73,7 @@ class StravaService:
                 distance=response.distance,
                 elapsed_time=response.elapsed_time,
                 type=response.type,
-                start_date=response.start_date,
+                start_date=response.start_date_local,
                 average_heartrate=response.average_heartrate,
                 max_heartrate=response.max_heartrate,
                 polyline=response.map.polyline,

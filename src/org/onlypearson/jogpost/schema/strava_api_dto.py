@@ -38,6 +38,7 @@ class StravaActivityResponse(BaseModel):
     elapsed_time: float
     type: str
     start_date: datetime
+    start_date_local: datetime
     average_heartrate: float | None = None
     max_heartrate: float | None = None
     map: StravaActivityMapDto
