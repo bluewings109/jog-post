@@ -87,7 +87,7 @@ class StravaService:
             else:
                 image_url: str = self._cloudinary_client.upload_image(route_image)
                 print(f"image_url: {image_url}")
-                caption: str = await self._make_image_caption(response.start_date, response.distance, response.elapsed_time)
+                caption: str = await self._make_image_caption(response.start_date_local, response.distance, response.elapsed_time)
                 media_id: str = await self._instagram_service.upload_image(athlete_id, image_url, caption, session)
                 print(f"media_id: {media_id}")
                 await self._activity_repository.update_is_posted(activity_id, True, session)
