@@ -6,30 +6,47 @@ export interface Activity {
   name: string | null
   sport_type: string | null
   start_date: string
+  start_date_local: string
+  timezone: string | null
   distance: number | null
   moving_time: number | null
   elapsed_time: number | null
   total_elevation_gain: number | null
   average_speed: number | null
+  max_speed: number | null
   average_heartrate: number | null
+  max_heartrate: number | null
+  average_cadence: number | null
+  calories: number | null
+  suffer_score: number | null
   summary_polyline: string | null
+  achievement_count: number
+  kudos_count: number
+  pr_count: number
+  trainer: boolean
+  commute: boolean
+  average_pace_sec_per_km: number | null
 }
 
 export interface ActivityDetail extends Activity {
   laps: Lap[]
-  calories: number | null
-  suffer_score: number | null
-  average_cadence: number | null
-  max_heartrate: number | null
 }
 
 export interface Lap {
   id: number
+  strava_id: number
   lap_index: number
-  distance: number | null
+  name: string | null
+  elapsed_time: number | null
   moving_time: number | null
+  distance: number | null
   average_speed: number | null
+  max_speed: number | null
+  average_cadence: number | null
   average_heartrate: number | null
+  max_heartrate: number | null
+  total_elevation_gain: number | null
+  pace_zone: number | null
 }
 
 export interface ActivitiesResponse {

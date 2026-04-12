@@ -2,12 +2,18 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import apiClient from '@/api/client'
 
+interface DataSource {
+  provider: string
+  external_id: string
+}
+
 interface User {
   id: number
-  strava_id: number
-  firstname: string | null
-  lastname: string | null
-  profile_pic_url: string | null
+  google_id: string
+  email: string
+  name: string | null
+  picture: string | null
+  data_sources: DataSource[]
 }
 
 export const useAuthStore = defineStore('auth', () => {
