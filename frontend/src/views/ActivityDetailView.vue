@@ -37,6 +37,12 @@
         </v-card>
       </template>
 
+      <!-- AI 조언 -->
+      <div class="text-subtitle-2 font-weight-medium mb-2">AI 조언</div>
+      <v-card rounded="lg" elevation="1" class="mb-6 pa-4">
+        <AdviceChat :stream-url="`/advice/activity/${store.currentActivity.id}`" />
+      </v-card>
+
       <!-- 부가 정보 -->
       <v-row dense class="text-caption text-medium-emphasis">
         <v-col v-if="store.currentActivity.trainer" cols="auto">
@@ -65,6 +71,7 @@ import { onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useActivitiesStore } from '@/stores/activities'
 import ActivityStats from '@/components/ActivityStats.vue'
+import AdviceChat from '@/components/AdviceChat.vue'
 import LapTable from '@/components/LapTable.vue'
 import RouteMap from '@/components/RouteMap.vue'
 import { formatDate } from '@/lib/format'
