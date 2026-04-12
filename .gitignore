@@ -1,0 +1,23 @@
+# IDE
+.idea/
+.vscode/
+
+# 환경 변수
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# 테스트
+backend/test.db
+backend/.pytest_cache/
+
+# 빌드
+frontend/dist/
+frontend/node_modules/
+
+# OS
+.DS_Store
