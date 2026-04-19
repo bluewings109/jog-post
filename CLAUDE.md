@@ -149,9 +149,14 @@ class LLMClient(Protocol):
 | `anthropic` | `AnthropicClient` | `claude-haiku-4-5-20251001` | `anthropic` 패키지 필요 |
 | `openai` | `OpenAIClient` | `gpt-4o-mini` | `openai` 패키지 필요 |
 | `gemini` | `GeminiClient` | `gemini-2.0-flash` | `openai` 패키지 재사용, base_url만 변경 |
-| `groq` | `GroqClient` | `llama-3.3-70b-versatile` | `openai` 패키지 재사용, base_url만 변경 |
+| `groq` | `GroqClient` | `llama-3.3-70b-versatile` | `openai` 패키지 재사용, base_url만 변경. `temperature=0.4`, `top_p=0.9` 고정 (언어 혼용 방지) |
 
 새 공급자 추가 시 `LLMClient` Protocol을 구현하는 클래스 작성 후 `get_llm_client()`에 분기 추가.
+
+**LLM 관련 주의사항:**
+- 스트리밍 시작 전 `get_llm_client()`로 설정 유효성 검사 → 실패 시 503 반환 (스트림 도중 연결 끊김 방지)
+- 시스템 프롬프트에 "반드시 한국어로만 답변" 명시 — Llama 계열 모델의 언어 혼용(일본어 등) 억제
+- Groq/Llama 사용 시 언어 혼용이 발생하면 `temperature`를 `0.2~0.3`으로 낮춰볼 것
 
 ## 주요 설계 결정
 
