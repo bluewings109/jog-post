@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Frontend | Vue 3 + TypeScript, Vuetify 3, Pinia, Vue Router, Axios |
 | 인증 | Google OAuth2 + JWT (HttpOnly 쿠키) |
 | 데이터 연동 | Strava OAuth2 (`data_sources` 테이블로 관리, 향후 Apple Health 등 확장 가능) |
-| LLM | Protocol 기반 추상화 (`services/llm.py`) — OpenAI / Anthropic 교체 가능 |
+| LLM | Protocol 기반 추상화 (`services/llm.py`) — OpenAI / Anthropic / Gemini / Groq 교체 가능 |
 
 ## 개발 명령어
 
@@ -79,7 +79,7 @@ backend/app/
 │   ├── strava_auth.py   # Strava OAuth + 토큰 갱신
 │   ├── strava_api.py    # Strava REST API 호출
 │   ├── activity_sync.py # Webhook/수동 동기화 비즈니스 로직
-│   └── llm.py           # LLMClient Protocol + AnthropicClient/OpenAIClient
+│   └── llm.py           # LLMClient Protocol + AnthropicClient/OpenAIClient/GeminiClient/GroqClient
 └── core/
     ├── config.py        # Pydantic Settings (환경변수 단일 진실 공급원)
     ├── database.py      # 비동기 SQLAlchemy 엔진/세션
@@ -142,8 +142,16 @@ class LLMClient(Protocol):
     async def stream_completion(self, system: str, user: str) -> AsyncIterator[str]: ...
 ```
 
-`config.py`의 `LLM_PROVIDER` 환경변수로 `AnthropicClient` / `OpenAIClient` 선택.
-새 공급자 추가 시 Protocol을 구현하는 클래스만 작성하면 됨.
+`config.py`의 `LLM_PROVIDER` 환경변수로 공급자 선택:
+
+| `LLM_PROVIDER` | 클래스 | 기본 모델 | 비고 |
+|----------------|--------|----------|------|
+| `anthropic` | `AnthropicClient` | `claude-haiku-4-5-20251001` | `anthropic` 패키지 필요 |
+| `openai` | `OpenAIClient` | `gpt-4o-mini` | `openai` 패키지 필요 |
+| `gemini` | `GeminiClient` | `gemini-2.0-flash` | `openai` 패키지 재사용, base_url만 변경 |
+| `groq` | `GroqClient` | `llama-3.3-70b-versatile` | `openai` 패키지 재사용, base_url만 변경 |
+
+새 공급자 추가 시 `LLMClient` Protocol을 구현하는 클래스 작성 후 `get_llm_client()`에 분기 추가.
 
 ## 주요 설계 결정
 
@@ -178,9 +186,9 @@ JWT_ALGORITHM=HS256
 JWT_EXPIRE_MINUTES=10080   # 7일
 
 # LLM
-LLM_PROVIDER=              # openai | anthropic
+LLM_PROVIDER=              # openai | anthropic | gemini | groq
 LLM_API_KEY=
-LLM_MODEL=                 # gpt-4o-mini | claude-haiku-4-5-20251001
+LLM_MODEL=                 # gpt-4o-mini | claude-haiku-4-5-20251001 | gemini-2.0-flash | llama-3.3-70b-versatile
 
 # App
 FRONTEND_URL=http://localhost:5173

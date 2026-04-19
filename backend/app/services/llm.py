@@ -1,7 +1,7 @@
 """LLM 추상화 레이어.
 
 Protocol 기반으로 공급자를 교체할 수 있도록 설계.
-현재 지원: anthropic, openai
+현재 지원: anthropic, openai, gemini, groq
 config.py의 LLM_PROVIDER 환경변수로 선택.
 """
 
@@ -74,6 +74,68 @@ class OpenAIClient:
 
 
 # ─────────────────────────────────────────────
+# Gemini 구현체 (OpenAI 호환 엔드포인트 사용)
+# ─────────────────────────────────────────────
+
+
+class GeminiClient:
+    def __init__(self) -> None:
+        from openai import AsyncOpenAI  # optional dependency
+
+        self._client = AsyncOpenAI(
+            api_key=settings.LLM_API_KEY,
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        )
+        self._model = settings.LLM_MODEL or "gemini-2.0-flash"
+
+    async def stream_completion(self, system: str, user: str) -> AsyncIterator[str]:
+        stream = await self._client.chat.completions.create(
+            model=self._model,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            stream=True,
+        )
+        async for chunk in stream:
+            delta = chunk.choices[0].delta.content
+            if delta:
+                yield delta
+
+
+# ─────────────────────────────────────────────
+# Groq 구현체 (OpenAI 호환 엔드포인트 사용)
+# ─────────────────────────────────────────────
+
+
+class GroqClient:
+    def __init__(self) -> None:
+        from openai import AsyncOpenAI  # optional dependency
+
+        self._client = AsyncOpenAI(
+            api_key=settings.LLM_API_KEY,
+            base_url="https://api.groq.com/openai/v1",
+        )
+        self._model = settings.LLM_MODEL or "llama-3.3-70b-versatile"
+
+    async def stream_completion(self, system: str, user: str) -> AsyncIterator[str]:
+        stream = await self._client.chat.completions.create(
+            model=self._model,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            stream=True,
+            temperature=0.4,   # 낮은 temperature로 언어 혼용 방지
+            top_p=0.9,
+        )
+        async for chunk in stream:
+            delta = chunk.choices[0].delta.content
+            if delta:
+                yield delta
+
+
+# ─────────────────────────────────────────────
 # 팩토리 함수
 # ─────────────────────────────────────────────
 
@@ -85,7 +147,11 @@ def get_llm_client() -> LLMClient:
         return AnthropicClient()
     if provider == "openai":
         return OpenAIClient()
+    if provider == "gemini":
+        return GeminiClient()
+    if provider == "groq":
+        return GroqClient()
     raise ValueError(
         f"지원하지 않는 LLM_PROVIDER: '{provider}'. "
-        "anthropic 또는 openai 중 하나를 설정하세요."
+        "anthropic, openai, gemini, groq 중 하나를 설정하세요."
     )

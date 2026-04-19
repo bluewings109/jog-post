@@ -92,7 +92,11 @@ function startStream() {
     },
     (err) => {
       streaming.value = false
-      errorMsg.value = err instanceof Error ? err.message : '조언을 불러오지 못했습니다.'
+      if (err instanceof Error && err.message) {
+        errorMsg.value = err.message
+      } else {
+        errorMsg.value = '네트워크 연결을 확인하고 다시 시도해주세요.'
+      }
     },
   )
 }

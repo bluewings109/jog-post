@@ -43,7 +43,16 @@ export function streamAdvice(
   })
     .then(async (resp) => {
       if (!resp.ok) {
-        onError(new Error(`HTTP ${resp.status}`))
+        const messages: Record<number, string> = {
+          401: '로그인이 필요합니다. 페이지를 새로고침 후 다시 시도해주세요.',
+          403: '접근 권한이 없습니다.',
+          404: '활동 정보를 찾을 수 없습니다.',
+          429: 'AI 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.',
+          500: 'AI 서버에 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+          502: 'AI 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.',
+          503: 'AI 서비스가 설정되지 않았습니다. LLM_PROVIDER와 LLM_API_KEY를 확인해주세요.',
+        }
+        onError(new Error(messages[resp.status] ?? `오류가 발생했습니다. (${resp.status})`))
         return
       }
       const reader = resp.body?.getReader()
@@ -78,7 +87,9 @@ export function streamAdvice(
       onDone()
     })
     .catch((err) => {
-      if ((err as Error).name !== 'AbortError') onError(err)
+      if ((err as Error).name !== 'AbortError') {
+        onError(new Error('AI 서비스에 연결할 수 없습니다. 네트워크 상태를 확인하고 다시 시도해주세요.'))
+      }
     })
 
   return () => controller.abort()

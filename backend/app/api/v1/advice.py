@@ -21,7 +21,8 @@ from app.services.llm import get_llm_client
 router = APIRouter(prefix="/advice", tags=["advice"])
 
 _SYSTEM_PROMPT = """당신은 전문 달리기 코치입니다.
-사용자의 운동 데이터를 분석하고, 구체적이고 실용적인 훈련 조언을 한국어로 제공합니다.
+사용자의 운동 데이터를 분석하고, 구체적이고 실용적인 훈련 조언을 제공합니다.
+반드시 한국어로만 답변하세요. 영어, 일본어 등 다른 언어는 절대 사용하지 마세요.
 데이터에 근거한 조언을 하되, 이해하기 쉽고 동기부여가 되는 방식으로 설명하세요.
 마크다운 형식으로 구조화하여 응답하세요."""
 
@@ -182,6 +183,11 @@ async def advice_for_activity(
     if activity is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Activity not found")
 
+    try:
+        get_llm_client()
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+
     context = _build_activity_context(activity, activity.laps)
     user_prompt = f"다음 달리기 활동을 분석하고 개선을 위한 구체적인 조언을 해주세요:\n\n{context}"
 
@@ -207,6 +213,11 @@ async def advice_general(
         .limit(30)
     )
     activities = list(result.scalars().all())
+
+    try:
+        get_llm_client()
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
 
     context = _build_general_context(activities)
     user_prompt = (
