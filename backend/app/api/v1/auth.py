@@ -21,7 +21,7 @@ _OAUTH_STATE_COOKIE = "oauth_state"
 _COOKIE_OPTS = {
     "httponly": True,
     "samesite": "lax",
-    "secure": False,      # 배포 시 True로 변경
+    "secure": settings.FRONTEND_URL.startswith("https"),
 }
 
 
