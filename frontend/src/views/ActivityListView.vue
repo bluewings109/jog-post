@@ -72,9 +72,16 @@ async function syncActivities() {
     syncMessage.value = `${data.synced}개 활동을 동기화했습니다.`
     await store.loadActivities(1, perPage)
     page.value = 1
-  } catch {
+  } catch (err: unknown) {
     syncSuccess.value = false
-    syncMessage.value = 'Strava 연동을 먼저 완료해주세요.'
+    const status = (err as { response?: { status?: number } })?.response?.status
+    if (status === 400) {
+      syncMessage.value = 'Strava 연동을 먼저 완료해주세요.'
+    } else if (status === 429) {
+      syncMessage.value = 'Strava API 요청 한도를 초과했습니다. 15분 후 다시 시도해주세요.'
+    } else {
+      syncMessage.value = '동기화 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
+    }
   } finally {
     syncing.value = false
   }

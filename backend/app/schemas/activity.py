@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, computed_field
+from pydantic import BaseModel, Field, computed_field
 
 
 class LapResponse(BaseModel):
@@ -59,8 +59,28 @@ class ActivityResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class SplitMetricResponse(BaseModel):
+    split: int
+    distance: float | None = None
+    elapsed_time: int | None = None
+    moving_time: int | None = None
+    average_speed: float | None = None
+    average_heartrate: float | None = None
+    pace_zone: int | None = None
+    elevation_difference: float | None = None
+
+
 class ActivityDetailResponse(ActivityResponse):
     laps: list[LapResponse] = []
+    raw_json: dict | None = Field(default=None, exclude=True)
+
+    @computed_field
+    @property
+    def splits_metric(self) -> list[SplitMetricResponse]:
+        if not self.raw_json:
+            return []
+        raw = self.raw_json.get("splits_metric", [])
+        return [SplitMetricResponse(**s) for s in raw if isinstance(s, dict)]
 
 
 class ActivitiesPageResponse(BaseModel):

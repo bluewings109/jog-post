@@ -6,6 +6,7 @@ Webhook 이벤트와 수동 동기화 모두 이 모듈을 사용한다.
 import logging
 from datetime import datetime, timezone
 
+import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -92,8 +93,14 @@ async def sync_activities_bulk(
             if sport_type not in _RUN_SPORT_TYPES:
                 continue
             # 요약 응답에 laps가 없으므로 상세 조회
+            # 429는 상위로 전파해서 엔드포인트에서 처리
             try:
                 raw = await strava_api.fetch_activity(summary["id"], access_token)
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429:
+                    raise
+                logger.exception("Failed to fetch activity %s", summary["id"])
+                continue
             except Exception:
                 logger.exception("Failed to fetch activity %s", summary["id"])
                 continue

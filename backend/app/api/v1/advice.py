@@ -69,8 +69,22 @@ def _build_activity_context(activity: Activity, laps: list[Lap]) -> str:
     if activity.suffer_score:
         lines.append(f"고통 점수: {activity.suffer_score}")
 
+    splits = (activity.raw_json or {}).get("splits_metric", [])
+    if splits:
+        lines.append(f"\nkm 구간 데이터 ({len(splits)}개):")
+        lines.append("| 구간 | 거리 | 페이스 | 심박 | 고도차 |")
+        lines.append("|------|------|--------|------|--------|")
+        for s in splits:
+            km = s.get("split", "-")
+            dist = f"{(s.get('distance') or 0) / 1000:.2f} km"
+            pace = _format_pace(s.get("average_speed"))
+            hr = f"{s['average_heartrate']:.0f}" if s.get("average_heartrate") else "-"
+            elev = s.get("elevation_difference")
+            elev_str = f"{elev:+.0f} m" if elev is not None else "-"
+            lines.append(f"| {km}km | {dist} | {pace} | {hr} | {elev_str} |")
+
     if laps:
-        lines.append(f"\n랩 데이터 ({min(len(laps), 20)}개):")
+        lines.append(f"\n사용자 랩 데이터 ({min(len(laps), 20)}개):")
         lines.append("| 랩 | 거리 | 페이스 | 심박 |")
         lines.append("|----|------|--------|------|")
         for lap in laps[:20]:

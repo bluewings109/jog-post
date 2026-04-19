@@ -26,11 +26,11 @@ _COOKIE_OPTS = {
 
 
 def _google_redirect_uri(request: Request) -> str:
-    return str(request.base_url) + "auth/google/callback"
+    return str(request.base_url) + "api/v1/auth/google/callback"
 
 
 def _strava_redirect_uri(request: Request) -> str:
-    return str(request.base_url) + "auth/strava/callback"
+    return str(request.base_url) + "api/v1/auth/strava/callback"
 
 
 # ────────────────────────────────────────────────────────────
@@ -40,7 +40,8 @@ def _strava_redirect_uri(request: Request) -> str:
 @router.get("/google/login")
 async def google_login(request: Request) -> RedirectResponse:
     """Google OAuth 인증 페이지로 리디렉트한다."""
-    url, state = google_auth.build_login_url(_google_redirect_uri(request))
+    redirect_uri = _google_redirect_uri(request)
+    url, state = google_auth.build_login_url(redirect_uri)
     response = RedirectResponse(url)
     response.set_cookie(_OAUTH_STATE_COOKIE, state, max_age=600, **_COOKIE_OPTS)
     return response

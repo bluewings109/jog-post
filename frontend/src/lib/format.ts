@@ -43,3 +43,13 @@ export function formatElevation(m: number | null | undefined): string {
   if (m == null) return '-'
   return `${Math.round(m)} m`
 }
+
+/** 심박수에 따른 색상 클래스 (5존 기준) */
+export function hrColor(bpm: number | null | undefined): string {
+  if (!bpm) return ''
+  if (bpm < 114) return 'hr-z1'
+  if (bpm < 152) return 'hr-z2'
+  if (bpm < 171) return 'hr-z3'
+  if (bpm < 190) return 'hr-z4'
+  return 'hr-z5'
+}

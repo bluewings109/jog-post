@@ -27,13 +27,25 @@
         <RouteMap :encoded-polyline="store.currentActivity.summary_polyline" class="mb-6" />
       </template>
 
-      <!-- 랩 -->
-      <template v-if="store.currentActivity.laps.length > 0">
-        <div class="text-subtitle-2 font-weight-medium mb-2">
-          랩 ({{ store.currentActivity.laps.length }})
-        </div>
+      <!-- 구간/랩 탭 -->
+      <template v-if="store.currentActivity.splits_metric.length > 0 || store.currentActivity.laps.length > 0">
+        <v-tabs v-model="lapTab" density="compact" class="mb-2">
+          <v-tab v-if="store.currentActivity.splits_metric.length > 0" value="splits">
+            km 구간
+          </v-tab>
+          <v-tab v-if="store.currentActivity.laps.length > 0" value="laps">
+            사용자 랩 ({{ store.currentActivity.laps.length }})
+          </v-tab>
+        </v-tabs>
         <v-card rounded="lg" elevation="1" class="mb-6">
-          <LapTable :laps="store.currentActivity.laps" />
+          <v-window v-model="lapTab">
+            <v-window-item value="splits">
+              <SplitsTable :splits="store.currentActivity.splits_metric" />
+            </v-window-item>
+            <v-window-item value="laps">
+              <LapTable :laps="store.currentActivity.laps" />
+            </v-window-item>
+          </v-window>
         </v-card>
       </template>
 
@@ -67,12 +79,13 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useActivitiesStore } from '@/stores/activities'
 import ActivityStats from '@/components/ActivityStats.vue'
 import AdviceChat from '@/components/AdviceChat.vue'
 import LapTable from '@/components/LapTable.vue'
+import SplitsTable from '@/components/SplitsTable.vue'
 import RouteMap from '@/components/RouteMap.vue'
 import { formatDate } from '@/lib/format'
 
@@ -80,5 +93,11 @@ const route = useRoute()
 const router = useRouter()
 const store = useActivitiesStore()
 
-onMounted(() => store.loadActivity(Number(route.params.id)))
+const hasSplits = computed(() => (store.currentActivity?.splits_metric?.length ?? 0) > 0)
+const lapTab = ref<'splits' | 'laps'>('splits')
+
+onMounted(async () => {
+  await store.loadActivity(Number(route.params.id))
+  lapTab.value = hasSplits.value ? 'splits' : 'laps'
+})
 </script>

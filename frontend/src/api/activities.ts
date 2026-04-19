@@ -28,8 +28,20 @@ export interface Activity {
   average_pace_sec_per_km: number | null
 }
 
+export interface SplitMetric {
+  split: number
+  distance: number | null
+  elapsed_time: number | null
+  moving_time: number | null
+  average_speed: number | null
+  average_heartrate: number | null
+  pace_zone: number | null
+  elevation_difference: number | null
+}
+
 export interface ActivityDetail extends Activity {
   laps: Lap[]
+  splits_metric: SplitMetric[]
 }
 
 export interface Lap {

@@ -1,5 +1,6 @@
 from datetime import datetime
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -86,7 +87,18 @@ async def sync_activities(
             detail="Strava 연동이 필요합니다. /auth/strava/connect 를 먼저 완료하세요.",
         )
 
-    saved = await sync_activities_bulk(int(data_source.external_id), db)
+    try:
+        saved = await sync_activities_bulk(int(data_source.external_id), db)
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 429:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Strava API 요청 한도를 초과했습니다. 15분 후 다시 시도해주세요.",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Strava API 오류가 발생했습니다.",
+        )
     return {"synced": saved}
 
 
