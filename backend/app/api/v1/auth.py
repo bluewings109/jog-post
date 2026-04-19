@@ -41,6 +41,7 @@ def _strava_redirect_uri(request: Request) -> str:
 async def google_login(request: Request) -> RedirectResponse:
     """Google OAuth 인증 페이지로 리디렉트한다."""
     redirect_uri = _google_redirect_uri(request)
+    print(f"redirect_uri: {redirect_uri}")
     url, state = google_auth.build_login_url(redirect_uri)
     response = RedirectResponse(url)
     response.set_cookie(_OAUTH_STATE_COOKIE, state, max_age=600, **_COOKIE_OPTS)
