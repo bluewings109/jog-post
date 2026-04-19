@@ -85,7 +85,7 @@ cp .env.example backend/.env
 | `openai` | [platform.openai.com](https://platform.openai.com) | `gpt-4o-mini` | 유료 |
 | `anthropic` | [console.anthropic.com](https://console.anthropic.com) | `claude-haiku-4-5-20251001` | 유료 |
 | `gemini` | [aistudio.google.com](https://aistudio.google.com) | `gemini-2.0-flash` | 무료 티어 제공 |
-| `groq` | [console.groq.com](https://console.groq.com) | `llama-3.3-70b-versatile` | 무료 티어 제공 |
+| `groq` | [console.groq.com](https://console.groq.com) | `llama-3.3-70b-versatile` | 무료 티어 제공 (한국어 응답 최적화 적용) |
 
 > Google Cloud Console에서 승인된 리디렉션 URI로 `http://localhost:8000/api/v1/auth/google/callback`을 추가해야 합니다.
 
