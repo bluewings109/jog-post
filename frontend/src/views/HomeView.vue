@@ -54,7 +54,7 @@
 import { computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 
-const apiBase = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+const apiBase = import.meta.env.VITE_API_URL ?? ''
 const authStore = useAuthStore()
 
 const hasStrava = computed(() =>
