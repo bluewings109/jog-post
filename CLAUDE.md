@@ -158,6 +158,40 @@ class LLMClient(Protocol):
 - 시스템 프롬프트에 "반드시 한국어로만 답변" 명시 — Llama 계열 모델의 언어 혼용(일본어 등) 억제
 - Groq/Llama 사용 시 언어 혼용이 발생하면 `temperature`를 `0.2~0.3`으로 낮춰볼 것
 
+## 배포 구조 (Railway)
+
+단일 서비스로 FastAPI가 Vue 빌드 결과물을 직접 서빙합니다.
+
+```
+Railway 프로젝트
+├── Web Service (FastAPI + Vue 정적 파일)
+│   ├── /api/v1/*  → FastAPI 라우터
+│   └── /*         → Vue SPA (index.html 폴백)
+└── PostgreSQL Plugin
+```
+
+### 핵심 파일
+
+| 파일 | 역할 |
+|------|------|
+| `railway.toml` | 빌드·시작 명령, 헬스체크 경로 설정 |
+| `build.sh` | 프론트엔드 빌드 → 백엔드 의존성 설치 → DB 마이그레이션 |
+| `backend/app/main.py` | `frontend/dist` 존재 시 정적 파일 서빙 + SPA 폴백 라우트 |
+
+### 배포 절차
+
+1. GitHub push → Railway에서 `build.sh` 자동 실행
+2. Railway 프로젝트에 PostgreSQL 플러그인 추가
+3. 환경변수 설정 (`DATABASE_URL`, `GOOGLE_*`, `STRAVA_*`, `JWT_SECRET_KEY`, `LLM_*`, `FRONTEND_URL`)
+4. Google Cloud Console / Strava Developers에서 리디렉션 URI를 배포 URL로 업데이트
+5. Strava Webhook 재등록 (`scripts/register_webhook.py --callback-url https://앱.railway.app/...`)
+
+### 로컬 vs 프로덕션 API 경로
+
+- **로컬 개발**: 프론트엔드(`localhost:5173`)가 백엔드(`localhost:8000`)로 프록시 없이 직접 요청 — `VITE_API_URL` 불필요
+- **프로덕션**: 같은 도메인에서 서빙 → `VITE_API_URL` 미설정 시 상대 경로(`/api/v1`) 자동 사용
+- `frontend/src/api/client.ts`와 `advice.ts` 모두 `import.meta.env.VITE_API_URL ?? ''` 패턴으로 동작
+
 ## 주요 설계 결정
 
 | 결정 | 이유 |
@@ -167,6 +201,7 @@ class LLMClient(Protocol):
 | 인증/데이터 분리 | Google(identity) + Strava(data)를 분리해 다중 데이터 소스 확장 용이 |
 | splits_metric 별도 테이블 없음 | raw_json에서 computed_field로 파싱 → 마이그레이션 불필요 |
 | Alembic sync 연결 | `env.py`에서 `postgresql+asyncpg://` → `postgresql://` 변환 (Alembic은 sync 엔진 사용) |
+| 단일 서비스 배포 | FastAPI가 Vue 빌드 정적 파일 직접 서빙 → Railway 단일 서비스로 운영 가능 |
 
 ## 환경 변수
 
@@ -208,4 +243,4 @@ FRONTEND_URL=http://localhost:5173
 | 3 | Strava Webhook + 활동 자동 저장 | ✅ 완료 |
 | 4 | 활동 조회 API + 프론트엔드 (지도, km구간, 랩) | ✅ 완료 |
 | 5 | LLM 조언 연동 (SSE 스트리밍) | ✅ 완료 |
-| 6 | Railway/Render 배포 | 미시작 |
+| 6 | Railway 단일 서비스 배포 (FastAPI + Vue SPA) | ✅ 완료 |

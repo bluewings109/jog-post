@@ -34,7 +34,8 @@ export function streamAdvice(
   onError: (err: unknown) => void,
 ): () => void {
   const controller = new AbortController()
-  const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+  // VITE_API_URL이 없으면 같은 도메인(상대 경로) 사용
+  const baseUrl = import.meta.env.VITE_API_URL ?? ''
 
   fetch(`${baseUrl}/api/v1${url}`, {
     method: 'POST',
