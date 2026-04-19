@@ -4,6 +4,7 @@
 
 # 환경 변수
 .env
+.env.*
 
 # Python
 __pycache__/
