@@ -145,3 +145,49 @@ uv run python scripts/register_webhook.py \
 | POST | `/api/v1/advice/activity/{id}` | 활동별 AI 조언 (SSE 스트리밍) |
 | POST | `/api/v1/advice/general` | 최근 N주 종합 조언 (SSE 스트리밍) |
 | GET | `/api/v1/advice/history` | 과거 조언 목록 |
+
+## Railway 배포
+
+FastAPI가 Vue 빌드 결과물을 직접 서빙하는 단일 서비스 구조로 Railway에 배포합니다.
+
+```
+Railway 프로젝트
+├── Web Service (FastAPI + Vue 정적 파일)
+│   ├── /api/v1/*  → FastAPI 라우터
+│   └── /*         → Vue SPA (index.html)
+└── PostgreSQL Plugin
+```
+
+### 배포 절차
+
+1. **GitHub push** 후 [railway.app](https://railway.app) → New Project → GitHub 저장소 연결
+   - `railway.toml`을 자동 인식해 `build.sh` 실행 (프론트엔드 빌드 → 백엔드 설치 → DB 마이그레이션)
+
+2. **PostgreSQL 추가**: 프로젝트 → + New → Database → PostgreSQL
+   - 발급된 `DATABASE_URL`에서 `postgresql://` → `postgresql+asyncpg://` 로 변경해 환경변수에 입력
+
+3. **환경변수 설정** (Web Service → Variables):
+   ```
+   DATABASE_URL        = postgresql+asyncpg://...
+   GOOGLE_CLIENT_ID    =
+   GOOGLE_CLIENT_SECRET=
+   STRAVA_CLIENT_ID    =
+   STRAVA_CLIENT_SECRET=
+   STRAVA_WEBHOOK_VERIFY_TOKEN = jog-post-webhook
+   JWT_SECRET_KEY      =
+   LLM_PROVIDER        = groq
+   LLM_API_KEY         =
+   LLM_MODEL           = llama-3.3-70b-versatile
+   FRONTEND_URL        = https://[앱이름].railway.app
+   ```
+
+4. **OAuth 리디렉션 URI 업데이트**:
+   - Google Cloud Console: `https://[앱이름].railway.app/api/v1/auth/google/callback`
+   - Strava Developers: Authorization Callback Domain → `[앱이름].railway.app`
+
+5. **Strava Webhook 재등록**:
+   ```bash
+   cd backend
+   uv run python scripts/register_webhook.py \
+     --callback-url https://[앱이름].railway.app/api/v1/webhook/strava
+   ```
