@@ -9,7 +9,7 @@ from app.core.database import get_db
 from app.core.security import create_access_token
 from app.models.data_source import DataSource
 from app.models.user import User
-from app.schemas.user import DataSourceResponse, MeResponse
+from app.schemas.user import DataSourceResponse, MeResponse, MeUpdateRequest
 from app.services import google_auth, strava_auth
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -118,6 +118,32 @@ async def me(
         email=current_user.email,
         name=current_user.name,
         picture=current_user.picture,
+        is_public=current_user.is_public,
+        data_sources=[DataSourceResponse.model_validate(s) for s in sources],
+    )
+
+
+@router.patch("/me", response_model=MeResponse)
+async def update_me(
+    body: MeUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MeResponse:
+    """프로필 공개 여부를 변경한다."""
+    current_user.is_public = body.is_public
+    await db.commit()
+    await db.refresh(current_user)
+
+    result = await db.execute(
+        select(DataSource).where(DataSource.user_id == current_user.id)
+    )
+    sources = result.scalars().all()
+    return MeResponse(
+        id=current_user.id,
+        email=current_user.email,
+        name=current_user.name,
+        picture=current_user.picture,
+        is_public=current_user.is_public,
         data_sources=[DataSourceResponse.model_validate(s) for s in sources],
     )
 

@@ -12,7 +12,10 @@ app = FastAPI(title="JOG-POST API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_URL],
+    allow_origins=[
+        settings.FRONTEND_URL,
+        "https://bluewings109.github.io",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

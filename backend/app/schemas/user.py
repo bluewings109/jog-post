@@ -8,8 +8,19 @@ class UserResponse(BaseModel):
     email: str
     name: str | None
     picture: str | None
+    is_public: bool
 
     model_config = {"from_attributes": True}
+
+
+class MeUpdateRequest(BaseModel):
+    is_public: bool
+
+
+class PublicUserResponse(BaseModel):
+    id: int
+    name: str | None
+    picture: str | None
 
 
 class DataSourceResponse(BaseModel):
