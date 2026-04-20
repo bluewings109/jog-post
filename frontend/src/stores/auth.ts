@@ -13,6 +13,7 @@ interface User {
   email: string
   name: string | null
   picture: string | null
+  is_public: boolean
   data_sources: DataSource[]
 }
 
@@ -29,10 +30,15 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function updatePublicSetting(isPublic: boolean) {
+    const { data } = await apiClient.patch<User>('/auth/me', { is_public: isPublic })
+    user.value = data
+  }
+
   async function logout() {
     await apiClient.post('/auth/logout')
     user.value = null
   }
 
-  return { user, isLoggedIn, fetchMe, logout }
+  return { user, isLoggedIn, fetchMe, updatePublicSetting, logout }
 })
