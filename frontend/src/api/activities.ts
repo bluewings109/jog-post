@@ -68,8 +68,10 @@ export interface ActivitiesResponse {
   per_page: number
 }
 
-export const fetchActivities = (page = 1, perPage = 20) =>
-  apiClient.get<ActivitiesResponse>('/activities', { params: { page, per_page: perPage } })
+export const fetchActivities = (page = 1, perPage = 20, startDate?: string, endDate?: string) =>
+  apiClient.get<ActivitiesResponse>('/activities', {
+    params: { page, per_page: perPage, start_date: startDate, end_date: endDate },
+  })
 
 export const fetchActivity = (id: number) =>
   apiClient.get<ActivityDetail>(`/activities/${id}`)
