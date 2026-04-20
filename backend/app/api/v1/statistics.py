@@ -1,7 +1,8 @@
+import calendar
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import extract, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -53,6 +54,10 @@ async def get_weekly_stats(
     db: AsyncSession = Depends(get_db),
 ) -> WeeklyStatsResponse:
     """특정 월의 주별 집계 통계를 반환한다."""
+    last_day = calendar.monthrange(year, month)[1]
+    range_start = datetime(year, month, 1)
+    range_end = datetime(year, month, last_day, 23, 59, 59)
+
     stmt = (
         select(
             func.date_trunc("week", Activity.start_date_local).label("week_start"),
@@ -64,8 +69,8 @@ async def get_weekly_stats(
         )
         .where(
             Activity.user_id == current_user.id,
-            extract("year", Activity.start_date_local) == year,
-            extract("month", Activity.start_date_local) == month,
+            Activity.start_date_local >= range_start,
+            Activity.start_date_local <= range_end,
         )
         .group_by(func.date_trunc("week", Activity.start_date_local))
         .order_by(func.date_trunc("week", Activity.start_date_local))
@@ -101,9 +106,11 @@ async def get_monthly_stats(
     db: AsyncSession = Depends(get_db),
 ) -> MonthlyStatsResponse:
     """특정 연도의 월별 집계 통계를 반환한다."""
+    range_start = datetime(year, 1, 1)
+    range_end = datetime(year, 12, 31, 23, 59, 59)
+
     stmt = (
         select(
-            extract("month", Activity.start_date_local).label("month"),
             func.date_trunc("month", Activity.start_date_local).label("month_start"),
             func.count(Activity.id).label("activity_count"),
             func.sum(Activity.distance).label("total_distance_m"),
@@ -113,13 +120,11 @@ async def get_monthly_stats(
         )
         .where(
             Activity.user_id == current_user.id,
-            extract("year", Activity.start_date_local) == year,
+            Activity.start_date_local >= range_start,
+            Activity.start_date_local <= range_end,
         )
-        .group_by(
-            extract("month", Activity.start_date_local),
-            func.date_trunc("month", Activity.start_date_local),
-        )
-        .order_by(extract("month", Activity.start_date_local))
+        .group_by(func.date_trunc("month", Activity.start_date_local))
+        .order_by(func.date_trunc("month", Activity.start_date_local))
     )
 
     result = await db.execute(stmt)
@@ -127,12 +132,12 @@ async def get_monthly_stats(
 
     months = []
     for row in rows:
-        m = int(row.month)
-        label = _MONTH_LABELS[m - 1]
+        month_start: datetime = row.month_start
+        label = _MONTH_LABELS[month_start.month - 1]
         months.append(
             _build_item(
                 label,
-                row.month_start,
+                month_start,
                 int(row.activity_count),
                 row.total_distance_m,
                 row.total_moving_time,
@@ -152,7 +157,6 @@ async def get_yearly_stats(
     """전체 연도별 집계 통계를 반환한다."""
     stmt = (
         select(
-            extract("year", Activity.start_date_local).label("year"),
             func.date_trunc("year", Activity.start_date_local).label("year_start"),
             func.count(Activity.id).label("activity_count"),
             func.sum(Activity.distance).label("total_distance_m"),
@@ -161,11 +165,8 @@ async def get_yearly_stats(
             func.sum(Activity.total_elevation_gain).label("total_elevation_gain"),
         )
         .where(Activity.user_id == current_user.id)
-        .group_by(
-            extract("year", Activity.start_date_local),
-            func.date_trunc("year", Activity.start_date_local),
-        )
-        .order_by(extract("year", Activity.start_date_local))
+        .group_by(func.date_trunc("year", Activity.start_date_local))
+        .order_by(func.date_trunc("year", Activity.start_date_local))
     )
 
     result = await db.execute(stmt)
@@ -173,11 +174,12 @@ async def get_yearly_stats(
 
     years = []
     for row in rows:
-        label = f"{int(row.year)}년"
+        year_start: datetime = row.year_start
+        label = f"{year_start.year}년"
         years.append(
             _build_item(
                 label,
-                row.year_start,
+                year_start,
                 int(row.activity_count),
                 row.total_distance_m,
                 row.total_moving_time,
