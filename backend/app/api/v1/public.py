@@ -30,16 +30,6 @@ async def _get_public_user(user_id: int, db: AsyncSession) -> User:
     return user
 
 
-@router.get("/users/{user_id}", response_model=PublicUserResponse)
-async def get_public_user(
-    user_id: int,
-    db: AsyncSession = Depends(get_db),
-) -> PublicUserResponse:
-    """user_id로 공개 사용자 정보를 조회한다. is_public=False 이면 404를 반환한다."""
-    user = await _get_public_user(user_id, db)
-    return PublicUserResponse(id=user.id, name=user.name, picture=user.picture)
-
-
 @router.get("/users/lookup", response_model=PublicUserResponse)
 async def lookup_public_user(
     email: str = Query(..., description="조회할 사용자 이메일"),
@@ -50,6 +40,16 @@ async def lookup_public_user(
     user = result.scalar_one_or_none()
     if user is None or not user.is_public:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return PublicUserResponse(id=user.id, name=user.name, picture=user.picture)
+
+
+@router.get("/users/{user_id}", response_model=PublicUserResponse)
+async def get_public_user(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> PublicUserResponse:
+    """user_id로 공개 사용자 정보를 조회한다. is_public=False 이면 404를 반환한다."""
+    user = await _get_public_user(user_id, db)
     return PublicUserResponse(id=user.id, name=user.name, picture=user.picture)
 
 
