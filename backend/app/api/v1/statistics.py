@@ -2,12 +2,11 @@ import calendar
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
-from app.models.activity import Activity
 from app.models.user import User
 from app.schemas.statistics import (
     MonthlyStatsResponse,
@@ -19,6 +18,52 @@ from app.schemas.statistics import (
 router = APIRouter(prefix="/statistics", tags=["statistics"])
 
 _MONTH_LABELS = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"]
+
+_WEEKLY_SQL = text("""
+    SELECT
+        date_trunc('week', start_date_local) AS period_start,
+        count(id)                            AS activity_count,
+        sum(distance)                        AS total_distance_m,
+        sum(moving_time)                     AS total_moving_time,
+        avg(average_heartrate)               AS avg_heartrate,
+        sum(total_elevation_gain)            AS total_elevation_gain
+    FROM activities
+    WHERE user_id         = :user_id
+      AND start_date_local >= :range_start
+      AND start_date_local <= :range_end
+    GROUP BY date_trunc('week', start_date_local)
+    ORDER BY date_trunc('week', start_date_local)
+""")
+
+_MONTHLY_SQL = text("""
+    SELECT
+        date_trunc('month', start_date_local) AS period_start,
+        count(id)                             AS activity_count,
+        sum(distance)                         AS total_distance_m,
+        sum(moving_time)                      AS total_moving_time,
+        avg(average_heartrate)                AS avg_heartrate,
+        sum(total_elevation_gain)             AS total_elevation_gain
+    FROM activities
+    WHERE user_id         = :user_id
+      AND start_date_local >= :range_start
+      AND start_date_local <= :range_end
+    GROUP BY date_trunc('month', start_date_local)
+    ORDER BY date_trunc('month', start_date_local)
+""")
+
+_YEARLY_SQL = text("""
+    SELECT
+        date_trunc('year', start_date_local) AS period_start,
+        count(id)                            AS activity_count,
+        sum(distance)                        AS total_distance_m,
+        sum(moving_time)                     AS total_moving_time,
+        avg(average_heartrate)               AS avg_heartrate,
+        sum(total_elevation_gain)            AS total_elevation_gain
+    FROM activities
+    WHERE user_id = :user_id
+    GROUP BY date_trunc('year', start_date_local)
+    ORDER BY date_trunc('year', start_date_local)
+""")
 
 
 def _build_item(
@@ -58,41 +103,26 @@ async def get_weekly_stats(
     range_start = datetime(year, month, 1)
     range_end = datetime(year, month, last_day, 23, 59, 59)
 
-    stmt = (
-        select(
-            func.date_trunc("week", Activity.start_date_local).label("week_start"),
-            func.count(Activity.id).label("activity_count"),
-            func.sum(Activity.distance).label("total_distance_m"),
-            func.sum(Activity.moving_time).label("total_moving_time"),
-            func.avg(Activity.average_heartrate).label("avg_heartrate"),
-            func.sum(Activity.total_elevation_gain).label("total_elevation_gain"),
-        )
-        .where(
-            Activity.user_id == current_user.id,
-            Activity.start_date_local >= range_start,
-            Activity.start_date_local <= range_end,
-        )
-        .group_by(func.date_trunc("week", Activity.start_date_local))
-        .order_by(func.date_trunc("week", Activity.start_date_local))
+    result = await db.execute(
+        _WEEKLY_SQL,
+        {"user_id": current_user.id, "range_start": range_start, "range_end": range_end},
     )
-
-    result = await db.execute(stmt)
-    rows = result.all()
+    rows = result.mappings().all()
 
     weeks = []
     for row in rows:
-        week_start: datetime = row.week_start
-        week_num = week_start.isocalendar()[1]
-        label = f"{week_start.year}년 {week_num}주차"
+        period_start: datetime = row["period_start"]
+        week_num = period_start.isocalendar()[1]
+        label = f"{period_start.year}년 {week_num}주차"
         weeks.append(
             _build_item(
                 label,
-                week_start,
-                int(row.activity_count),
-                row.total_distance_m,
-                row.total_moving_time,
-                row.avg_heartrate,
-                row.total_elevation_gain,
+                period_start,
+                int(row["activity_count"]),
+                row["total_distance_m"],
+                row["total_moving_time"],
+                row["avg_heartrate"],
+                row["total_elevation_gain"],
             )
         )
 
@@ -109,40 +139,25 @@ async def get_monthly_stats(
     range_start = datetime(year, 1, 1)
     range_end = datetime(year, 12, 31, 23, 59, 59)
 
-    stmt = (
-        select(
-            func.date_trunc("month", Activity.start_date_local).label("month_start"),
-            func.count(Activity.id).label("activity_count"),
-            func.sum(Activity.distance).label("total_distance_m"),
-            func.sum(Activity.moving_time).label("total_moving_time"),
-            func.avg(Activity.average_heartrate).label("avg_heartrate"),
-            func.sum(Activity.total_elevation_gain).label("total_elevation_gain"),
-        )
-        .where(
-            Activity.user_id == current_user.id,
-            Activity.start_date_local >= range_start,
-            Activity.start_date_local <= range_end,
-        )
-        .group_by(func.date_trunc("month", Activity.start_date_local))
-        .order_by(func.date_trunc("month", Activity.start_date_local))
+    result = await db.execute(
+        _MONTHLY_SQL,
+        {"user_id": current_user.id, "range_start": range_start, "range_end": range_end},
     )
-
-    result = await db.execute(stmt)
-    rows = result.all()
+    rows = result.mappings().all()
 
     months = []
     for row in rows:
-        month_start: datetime = row.month_start
-        label = _MONTH_LABELS[month_start.month - 1]
+        period_start: datetime = row["period_start"]
+        label = _MONTH_LABELS[period_start.month - 1]
         months.append(
             _build_item(
                 label,
-                month_start,
-                int(row.activity_count),
-                row.total_distance_m,
-                row.total_moving_time,
-                row.avg_heartrate,
-                row.total_elevation_gain,
+                period_start,
+                int(row["activity_count"]),
+                row["total_distance_m"],
+                row["total_moving_time"],
+                row["avg_heartrate"],
+                row["total_elevation_gain"],
             )
         )
 
@@ -155,36 +170,22 @@ async def get_yearly_stats(
     db: AsyncSession = Depends(get_db),
 ) -> YearlyStatsResponse:
     """전체 연도별 집계 통계를 반환한다."""
-    stmt = (
-        select(
-            func.date_trunc("year", Activity.start_date_local).label("year_start"),
-            func.count(Activity.id).label("activity_count"),
-            func.sum(Activity.distance).label("total_distance_m"),
-            func.sum(Activity.moving_time).label("total_moving_time"),
-            func.avg(Activity.average_heartrate).label("avg_heartrate"),
-            func.sum(Activity.total_elevation_gain).label("total_elevation_gain"),
-        )
-        .where(Activity.user_id == current_user.id)
-        .group_by(func.date_trunc("year", Activity.start_date_local))
-        .order_by(func.date_trunc("year", Activity.start_date_local))
-    )
-
-    result = await db.execute(stmt)
-    rows = result.all()
+    result = await db.execute(_YEARLY_SQL, {"user_id": current_user.id})
+    rows = result.mappings().all()
 
     years = []
     for row in rows:
-        year_start: datetime = row.year_start
-        label = f"{year_start.year}년"
+        period_start: datetime = row["period_start"]
+        label = f"{period_start.year}년"
         years.append(
             _build_item(
                 label,
-                year_start,
-                int(row.activity_count),
-                row.total_distance_m,
-                row.total_moving_time,
-                row.avg_heartrate,
-                row.total_elevation_gain,
+                period_start,
+                int(row["activity_count"]),
+                row["total_distance_m"],
+                row["total_moving_time"],
+                row["avg_heartrate"],
+                row["total_elevation_gain"],
             )
         )
 
