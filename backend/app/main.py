@@ -18,6 +18,7 @@ app.add_middleware(
     allow_origins=[
         settings.FRONTEND_URL,
         "https://bluewings109.github.io",
+        "https://page.onlypearson.com",
     ],
     allow_credentials=True,
     allow_methods=["*"],

@@ -215,6 +215,18 @@ class LLMClient(Protocol):
 - **프로덕션**: 같은 도메인에서 서빙 → `VITE_API_URL` 미설정 시 상대 경로(`/api/v1`) 자동 사용
 - `frontend/src/api/client.ts`와 `advice.ts` 모두 `import.meta.env.VITE_API_URL ?? ''` 패턴으로 동작
 
+### CORS 허용 오리진
+
+`backend/app/main.py`의 `CORSMiddleware.allow_origins`는 jog-post 자체 프론트(`settings.FRONTEND_URL`) 외에, jog-post API를 호출하는 **외부에 별도로 호스팅된 정적 페이지**들을 명시적으로 추가해둔 목록이다:
+
+| 오리진 | 용도 |
+|--------|------|
+| `settings.FRONTEND_URL` | jog-post 자체 프론트엔드 (로컬/프로덕션 도메인) |
+| `https://bluewings109.github.io` | GitHub Pages로 호스팅된 정적 페이지에서 jog-post API 호출 |
+| `https://page.onlypearson.com` | 공개 프로필/통계 페이지를 별도 호스팅한 정적 사이트에서 jog-post API(`/api/v1/public/*` 등) 호출 |
+
+새 외부 페이지에서 jog-post API를 호출해야 하면 이 목록에 오리진을 추가해야 한다(하드코딩 배열, 환경변수화되어 있지 않음).
+
 ## 주요 설계 결정
 
 | 결정 | 이유 |
