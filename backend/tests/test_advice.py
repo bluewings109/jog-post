@@ -156,6 +156,20 @@ async def test_advice_activity_unauthenticated(client: AsyncClient):
     assert resp.status_code == 401
 
 
+@pytest.mark.asyncio
+async def test_advice_disabled_returns_404(client: AsyncClient, db: AsyncSession):
+    """ADVICE_ENABLED=false면 인증 여부와 무관하게 404를 반환한다."""
+    user = await _create_user(db, "disabled01")
+    await db.commit()
+
+    with patch("app.api.v1.advice.settings.ADVICE_ENABLED", False):
+        resp = await client.post(
+            "/api/v1/advice/general",
+            cookies=_cookie(user.id),
+        )
+    assert resp.status_code == 404
+
+
 # ─────────────────────────────────────────────
 # POST /advice/general
 # ─────────────────────────────────────────────

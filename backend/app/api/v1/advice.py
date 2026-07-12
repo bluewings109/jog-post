@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.activity import Activity
 from app.models.llm_advice import LLMAdvice
@@ -17,7 +18,16 @@ from app.models.user import User
 from app.schemas.advice import AdviceHistoryResponse, AdviceHistoryItem
 from app.services.llm import get_llm_client
 
-router = APIRouter(prefix="/advice", tags=["advice"])
+
+def _require_advice_enabled() -> None:
+    """ADVICE_ENABLED=false면 기능 자체가 없는 것처럼 404를 반환한다."""
+    if not settings.ADVICE_ENABLED:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Advice feature is disabled")
+
+
+router = APIRouter(
+    prefix="/advice", tags=["advice"], dependencies=[Depends(_require_advice_enabled)]
+)
 
 _SYSTEM_PROMPT = """당신은 전문 달리기 코치입니다.
 사용자의 운동 데이터를 분석하고, 구체적이고 실용적인 훈련 조언을 제공합니다.

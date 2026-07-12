@@ -68,6 +68,7 @@ async def test_me_authenticated(client: AsyncClient, db: AsyncSession):
     data = resp.json()
     assert data["email"] == "test@example.com"
     assert data["data_sources"] == []
+    assert "advice_enabled" in data
 
 
 # ────────────────────────────────────────────────────────────

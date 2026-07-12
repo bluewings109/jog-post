@@ -56,6 +56,9 @@ router.beforeEach(async (to) => {
         return { name: 'home' }
       }
     }
+    if (to.name === 'advice' && !auth.user?.advice_enabled) {
+      return { name: 'activities' }
+    }
   }
 })
 

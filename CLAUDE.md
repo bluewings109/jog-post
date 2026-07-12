@@ -170,6 +170,7 @@ class LLMClient(Protocol):
 새 공급자 추가 시 `LLMClient` Protocol을 구현하는 클래스 작성 후 `get_llm_client()`에 분기 추가.
 
 **LLM 관련 주의사항:**
+- `ADVICE_ENABLED=false`면 `/advice/*` 라우터 전체가 404를 반환(router-level dependency `_require_advice_enabled`, `backend/app/api/v1/advice.py`) — 기능 자체를 끄는 킬스위치. 프론트도 `/auth/me`의 `advice_enabled` 값을 보고 네비게이션·활동 상세 카드·`/advice` 라우트 접근을 함께 숨김
 - 스트리밍 시작 전 `get_llm_client()`로 설정 유효성 검사 → 실패 시 503 반환 (스트림 도중 연결 끊김 방지)
 - 시스템 프롬프트에 "반드시 한국어로만 답변" 명시 — Llama 계열 모델의 언어 혼용(일본어 등) 억제
 - Groq/Llama 사용 시 언어 혼용이 발생하면 `temperature`를 `0.2~0.3`으로 낮춰볼 것
@@ -246,6 +247,7 @@ JWT_EXPIRE_MINUTES=10080   # 7일
 LLM_PROVIDER=              # openai | anthropic | gemini | groq
 LLM_API_KEY=
 LLM_MODEL=                 # gpt-4o-mini | claude-haiku-4-5-20251001 | gemini-2.0-flash | llama-3.3-70b-versatile
+ADVICE_ENABLED=true        # false로 두면 /advice/* API가 404, 프론트 UI(네비게이션·활동 상세 카드)도 숨겨짐
 
 # App
 FRONTEND_URL=http://localhost:5173

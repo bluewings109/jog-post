@@ -116,6 +116,7 @@ async def me(
         picture=current_user.picture,
         is_public=current_user.is_public,
         data_sources=[DataSourceResponse.model_validate(s) for s in sources],
+        advice_enabled=settings.ADVICE_ENABLED,
     )
 
 
@@ -141,6 +142,7 @@ async def update_me(
         picture=current_user.picture,
         is_public=current_user.is_public,
         data_sources=[DataSourceResponse.model_validate(s) for s in sources],
+        advice_enabled=settings.ADVICE_ENABLED,
     )
 
 

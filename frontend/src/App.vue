@@ -9,7 +9,7 @@
       <template v-if="auth.isLoggedIn">
         <v-btn :to="{ name: 'activities' }" variant="text" color="white">기록</v-btn>
         <v-btn :to="{ name: 'statistics' }" variant="text" color="white">통계</v-btn>
-        <v-btn :to="{ name: 'advice' }" variant="text" color="white">AI 조언</v-btn>
+        <v-btn v-if="auth.user?.advice_enabled" :to="{ name: 'advice' }" variant="text" color="white">AI 조언</v-btn>
         <v-btn :to="{ name: 'profile' }" variant="text" color="white">프로필</v-btn>
         <v-btn variant="text" color="white" @click="auth.logout()">로그아웃</v-btn>
       </template>

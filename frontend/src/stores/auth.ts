@@ -20,6 +20,7 @@ interface User {
   picture: string | null
   is_public: boolean
   data_sources: DataSource[]
+  advice_enabled: boolean
 }
 
 export const useAuthStore = defineStore('auth', () => {

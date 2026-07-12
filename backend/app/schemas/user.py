@@ -35,6 +35,7 @@ class DataSourceResponse(BaseModel):
 
 class MeResponse(UserResponse):
     data_sources: list[DataSourceResponse]
+    advice_enabled: bool
 
 
 class AppleHealthConnectResponse(BaseModel):

@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = ""  # openai | anthropic | ollama
     LLM_API_KEY: str = ""
     LLM_MODEL: str = ""
+    ADVICE_ENABLED: bool = True  # AI 조언 기능 on/off
 
     # App
     FRONTEND_URL: str = "http://localhost:5173"

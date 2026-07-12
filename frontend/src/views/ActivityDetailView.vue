@@ -36,10 +36,12 @@
       </template>
 
       <!-- AI 조언 -->
-      <div class="text-subtitle-2 font-weight-medium mb-2">AI 조언</div>
-      <v-card rounded="lg" elevation="1" class="mb-6 pa-4">
-        <AdviceChat :stream-url="`/advice/activity/${store.currentActivity.id}`" />
-      </v-card>
+      <template v-if="auth.user?.advice_enabled">
+        <div class="text-subtitle-2 font-weight-medium mb-2">AI 조언</div>
+        <v-card rounded="lg" elevation="1" class="mb-6 pa-4">
+          <AdviceChat :stream-url="`/advice/activity/${store.currentActivity.id}`" />
+        </v-card>
+      </template>
 
       <!-- 부가 정보 -->
       <v-row dense class="text-caption text-medium-emphasis">
@@ -58,6 +60,7 @@
 import { onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useActivitiesStore } from '@/stores/activities'
+import { useAuthStore } from '@/stores/auth'
 import ActivityStats from '@/components/ActivityStats.vue'
 import AdviceChat from '@/components/AdviceChat.vue'
 import SplitsTable from '@/components/SplitsTable.vue'
@@ -67,6 +70,7 @@ import { formatDate } from '@/lib/format'
 const route = useRoute()
 const router = useRouter()
 const store = useActivitiesStore()
+const auth = useAuthStore()
 
 onMounted(async () => {
   await store.loadActivity(Number(route.params.id))
