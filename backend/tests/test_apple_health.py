@@ -218,3 +218,30 @@ async def test_sync_workouts_skips_unknown_secret_free_of_side_effects(db: Async
     cycling = {**_RUN_WORKOUT, "id": "svc-workout-cycling", "name": "자전거 타기"}
     result = await apple_health.sync_workouts({"data": {"workouts": [cycling]}}, user.id, db)
     assert result == {"saved": 0, "skipped": 1}
+
+
+@pytest.mark.asyncio
+async def test_sync_workouts_recovers_session_after_failed_workout(db: AsyncSession):
+    """한 워크아웃 처리 중 예외가 나도 세션이 rollback되어 이후 워크아웃은 정상 저장된다."""
+    from sqlalchemy import select
+
+    from app.models.activity import Activity
+
+    user = User(google_id="g-svc-07", email="svc07@example.com", name="서비스테스트7")
+    db.add(user)
+    await db.flush()
+    await db.commit()
+
+    # duration이 dict라 int()로 변환 시 예외가 발생하는 비정상 워크아웃
+    broken = {**_RUN_WORKOUT, "id": "svc-workout-broken", "duration": {"not": "a number"}}
+    ok = {**_RUN_WORKOUT, "id": "svc-workout-after-broken"}
+
+    result = await apple_health.sync_workouts(
+        {"data": {"workouts": [broken, ok]}}, user.id, db
+    )
+    assert result == {"saved": 1, "skipped": 1}
+
+    activity = await db.scalar(
+        select(Activity).where(Activity.apple_health_id == "svc-workout-after-broken")
+    )
+    assert activity is not None

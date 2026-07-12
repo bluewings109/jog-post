@@ -99,6 +99,7 @@ async def sync_workouts(payload: dict, user_id: int, db: AsyncSession) -> dict:
             activity = await _upsert_activity(raw, user_id, db)
         except Exception:
             logger.exception("Failed to process Apple Health workout id=%s", raw.get("id"))
+            await db.rollback()  # 실패한 트랜잭션을 정리해야 세션을 계속 쓸 수 있음
             skipped += 1
             continue
 
