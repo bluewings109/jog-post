@@ -61,9 +61,11 @@ uv run python scripts/register_webhook.py \
 ```
 backend/app/
 ├── api/v1/
-│   ├── auth.py          # Google/Strava OAuth 엔드포인트
+│   ├── auth.py          # Google/Strava OAuth 엔드포인트 + PATCH /auth/me (is_public 설정)
 │   ├── activities.py    # 활동 목록/상세/동기화/삭제
 │   ├── advice.py        # LLM 조언 SSE 스트리밍
+│   ├── statistics.py    # 주별/월별/연별 통계 (인증 필요)
+│   ├── public.py        # 공개 사용자 정보 + 통계 (인증 불필요)
 │   └── webhook.py       # Strava Webhook 수신
 ├── models/
 │   ├── user.py          # User (Google 로그인 정보)
@@ -73,7 +75,9 @@ backend/app/
 │   └── llm_advice.py    # LLMAdvice (조언 이력)
 ├── schemas/
 │   ├── activity.py      # ActivityResponse, ActivityDetailResponse, SplitMetricResponse
-│   └── advice.py        # AdviceHistoryResponse
+│   ├── advice.py        # AdviceHistoryResponse
+│   ├── statistics.py    # WeeklyStatsResponse, MonthlyStatsResponse, YearlyStatsResponse
+│   └── user.py          # UserResponse, MeResponse, MeUpdateRequest, PublicUserResponse
 ├── services/
 │   ├── google_auth.py   # Google OAuth 흐름
 │   ├── strava_auth.py   # Strava OAuth + 토큰 갱신
@@ -87,10 +91,13 @@ backend/app/
 
 frontend/src/
 ├── views/
-│   ├── HomeView.vue          # 로그인/Strava 연동 랜딩
-│   ├── ActivityListView.vue  # 활동 목록 + 동기화 버튼
+│   ├── HomeView.vue           # 로그인/Strava 연동 랜딩
+│   ├── ActivityListView.vue   # 활동 목록 + 동기화 버튼
 │   ├── ActivityDetailView.vue # 활동 상세 (탭: km구간/랩, 지도, AI조언)
-│   └── AdviceView.vue        # 종합 훈련 조언
+│   ├── AdviceView.vue         # 종합 훈련 조언
+│   ├── StatisticsView.vue     # 주별/월별/연별 통계 (인증 필요)
+│   ├── ProfileView.vue        # 프로필 설정 + is_public 토글 (인증 필요)
+│   └── PublicProfileView.vue  # 공개 프로필 + 통계 (인증 불필요, /public/:userId)
 ├── components/
 │   ├── ActivityCard.vue      # 목록 카드
 │   ├── ActivityStats.vue     # 핵심 통계 (거리/페이스/심박 등)
@@ -99,10 +106,15 @@ frontend/src/
 │   ├── RouteMap.vue          # Leaflet.js 경로 지도
 │   └── AdviceChat.vue        # SSE 스트리밍 AI 조언 표시
 ├── stores/
-│   ├── auth.ts               # 인증 상태 (Pinia)
-│   └── activities.ts         # 활동 데이터 (Pinia)
-└── lib/
-    └── format.ts             # formatTime, formatPace, formatDistance, hrColor 등 공유 유틸
+│   ├── auth.ts               # 인증 상태 + updatePublicSetting() (Pinia)
+│   ├── activities.ts         # 활동 데이터 (Pinia)
+│   └── statistics.ts         # 통계 데이터 (Pinia)
+└── api/
+    ├── client.ts             # Axios 인스턴스 (withCredentials)
+    ├── activities.ts         # 활동 API
+    ├── advice.ts             # 조언 API (SSE)
+    ├── statistics.ts         # 통계 API (인증 필요)
+    └── public.ts             # 공개 API (인증 불필요)
 ```
 
 ## 핵심 아키텍처
