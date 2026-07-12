@@ -107,7 +107,14 @@ async def sync_workouts(payload: dict, user_id: int, db: AsyncSession) -> dict:
 async def _upsert_activity(raw: dict, user_id: int, db: AsyncSession) -> Activity | None:
     name = raw.get("name") or ""
     if "run" not in name.lower():
-        logger.info("Skipping non-running workout: name=%s", name)
+        # TODO: 이름 기반 필터가 로케일에 취약함이 확인됨(한국어 "야외 운동" 등).
+        # 정확한 운동 타입 필드를 찾기 위해 전체 payload를 임시로 로깅한다.
+        logger.info(
+            "Skipping non-running workout: name=%s keys=%s raw=%s",
+            name,
+            list(raw.keys()),
+            {k: v for k, v in raw.items() if k != "route" and k != "heartRateData"},
+        )
         return None
 
     apple_health_id = raw.get("id")
