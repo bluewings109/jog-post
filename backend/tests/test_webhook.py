@@ -26,7 +26,7 @@ async def _create_user_with_secret(db: AsyncSession, suffix: str, secret: str) -
 
 _RUN_WORKOUT = {
     "id": "workout-001",
-    "name": "Running",
+    "name": "야외 운동",
     "start": "2024-06-01 05:30:00 +0000",
     "end": "2024-06-01 06:30:00 +0000",
     "duration": 3600,
@@ -84,7 +84,7 @@ async def test_webhook_saves_run_workout(client: AsyncClient, db: AsyncSession):
 async def test_webhook_skips_non_run_workout(client: AsyncClient, db: AsyncSession):
     await _create_user_with_secret(db, "04", "secret-04")
 
-    cycling = {**_RUN_WORKOUT, "id": "workout-cycling", "name": "Cycling"}
+    cycling = {**_RUN_WORKOUT, "id": "workout-cycling", "name": "자전거 타기"}
     resp = await client.post(
         "/api/v1/webhook/apple-health",
         json={"data": {"workouts": [cycling]}},

@@ -24,6 +24,12 @@ _KJ_PER_KCAL = 4.184
 _MILES_TO_METERS = 1609.344
 _SPLIT_DISTANCE_M = 1000.0
 
+# Health Auto Export가 한국어 로케일에서 워크아웃 이름을 내려주는 방식이 특이함:
+# 달리기(실내/실외)만 "OO 운동"이라는 일반화된 이름으로 오고,
+# 걷기("야외 걷기")·자전거("자전거 타기") 등은 구체적인 이름으로 옴 (실측 확인, 2026-07).
+# 즉 이 값들이 사실상 "달리기"를 가리키는 화이트리스트다.
+_RUN_WORKOUT_NAMES = {"야외 운동", "실내 운동"}
+
 
 # ────────────────────────────────────────────────────────────
 # 연동(시크릿) 관리
@@ -106,15 +112,8 @@ async def sync_workouts(payload: dict, user_id: int, db: AsyncSession) -> dict:
 
 async def _upsert_activity(raw: dict, user_id: int, db: AsyncSession) -> Activity | None:
     name = raw.get("name") or ""
-    if "run" not in name.lower():
-        # TODO: 이름 기반 필터가 로케일에 취약함이 확인됨(한국어 "야외 운동" 등).
-        # 정확한 운동 타입 필드를 찾기 위해 전체 payload를 임시로 로깅한다.
-        logger.info(
-            "Skipping non-running workout: name=%s keys=%s raw=%s",
-            name,
-            list(raw.keys()),
-            {k: v for k, v in raw.items() if k != "route" and k != "heartRateData"},
-        )
+    if name not in _RUN_WORKOUT_NAMES:
+        logger.info("Skipping non-running workout: name=%s", name)
         return None
 
     apple_health_id = raw.get("id")

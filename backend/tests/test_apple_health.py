@@ -159,7 +159,7 @@ async def test_disconnect_removes_data_source(db: AsyncSession):
 
 _RUN_WORKOUT = {
     "id": "svc-workout-001",
-    "name": "Running",
+    "name": "야외 운동",
     "start": "2024-06-01 05:30:00 +0000",
     "end": "2024-06-01 06:30:00 +0000",
     "duration": 3600,
@@ -202,6 +202,6 @@ async def test_sync_workouts_skips_unknown_secret_free_of_side_effects(db: Async
     await db.flush()
     await db.commit()
 
-    cycling = {**_RUN_WORKOUT, "id": "svc-workout-cycling", "name": "Cycling"}
+    cycling = {**_RUN_WORKOUT, "id": "svc-workout-cycling", "name": "자전거 타기"}
     result = await apple_health.sync_workouts({"data": {"workouts": [cycling]}}, user.id, db)
     assert result == {"saved": 0, "skipped": 1}
