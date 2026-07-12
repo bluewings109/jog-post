@@ -261,4 +261,4 @@ FRONTEND_URL=http://localhost:5173
 | 3 | Strava Webhook + 활동 자동 저장 | ✅ 완료 |
 | 4 | 활동 조회 API + 프론트엔드 (지도, km구간, 랩) | ✅ 완료 |
 | 5 | LLM 조언 연동 (SSE 스트리밍) | ✅ 완료 |
-| 6 | 라즈베리파이5 자가호스팅 배포 (docker compose + Cloudflare Tunnel) | 🚧 진행 중 |
+| 6 | 라즈베리파이5 자가호스팅 배포 (docker compose + Cloudflare Tunnel) | ✅ 완료 (Strava Webhook 자동 동기화만 정책상 보류, 수동 동기화로 대체) |
