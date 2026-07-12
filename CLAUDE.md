@@ -198,9 +198,9 @@ class LLMClient(Protocol):
 1. 라즈베리파이에서 `git clone` (최초 1회) 또는 `git pull` (재배포)
 2. `.env`를 `scp`로 배치 (`FRONTEND_URL=https://jog.onlypearson.com`, `POSTGRES_PASSWORD` 운영값 설정)
 3. `docker compose -f docker-compose.prod.yml up -d --build`
-4. Cloudflare Zero Trust 대시보드에서 기존 HA 터널에 Public Hostname 추가 (`jog.onlypearson.com` → `localhost:8000`)
+4. Cloudflare Zero Trust 대시보드에서 기존 HA 터널에 Public Hostname 추가 (`jog.onlypearson.com` → 라즈베리파이 LAN IP:8000, `localhost`/`homeassistant.local`은 이 환경에서 동작하지 않음 — [`docs/deployment-rpi.md`](docs/deployment-rpi.md) 참고)
 5. Google Cloud Console / Strava Developers에서 리디렉션 URI를 `jog.onlypearson.com` 기준으로 업데이트
-6. Strava Webhook 재등록 (`scripts/register_webhook.py --callback-url https://jog.onlypearson.com/api/v1/webhook/strava`)
+6. Strava Webhook 재등록은 현재 보류 — Strava API 정책 변경으로 Push Subscription이 승인/유료 등급 앱에만 열림(`403 Forbidden`, `Application Status: Inactive`). 앱은 수동 동기화로 정상 동작하며, 승인되면 `scripts/register_webhook.py --force`로 재시도
 
 자세한 절차는 [`docs/deployment-rpi.md`](docs/deployment-rpi.md) 참고.
 

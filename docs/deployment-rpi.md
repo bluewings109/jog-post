@@ -67,7 +67,11 @@ curl http://127.0.0.1:8000/health
    - Subdomain: `jog`
    - Domain: `onlypearson.com`
    - Service Type: `HTTP`
-   - URL: cloudflared가 호스트 네트워크에서 동작한다면 `localhost:8000`, 별도 네트워크 네임스페이스라면 라즈베리파이의 LAN IP(`http://<rpi-lan-ip>:8000`) — 실제 환경에서 어느 쪽인지 확인 후 선택
+   - URL: 라즈베리파이의 LAN IP (`http://<rpi-lan-ip>:8000`, 예: `192.168.0.56:8000`)
+
+   > `localhost:8000`이나 `homeassistant.local:8000`은 이 환경(HAOS 커뮤니티 SSH/cloudflared 애드온, 브리지 네트워크)에서 동작하지 않는 것으로 실측 확인됨. `homeassistant.local`은 HA Supervisor 내부 DNS가 호스트의 모든 인터페이스 IP(도커 브리지 게이트웨이 포함)를 무작위 순서로 반환하는 특수 케이스라 신뢰할 수 없다. 반드시 LAN IP를 명시할 것. 이에 따라 `docker-compose.prod.yml`의 앱 포트는 `0.0.0.0:8000:8000`으로 바인딩되어 있다(LAN 내 다른 기기에서도 포트 8000 직접 접근 가능 — 인터넷에는 노출 안 됨, 홈 네트워크 신뢰 전제).
+   >
+   > 라즈베리파이 IP가 DHCP로 바뀌면 이 설정이 깨지므로, 공유기에서 라즈베리파이에 고정 IP(DHCP 예약)를 걸어둘 것.
 3. 저장하면 DNS CNAME(`jog.onlypearson.com → <tunnel-id>.cfargotunnel.com`)이 자동 생성됩니다.
 4. 외부 접근 검증:
 
@@ -82,6 +86,16 @@ curl -I https://jog.onlypearson.com/health
    - 승인된 JavaScript 원본: `https://jog.onlypearson.com`
 2. **Strava Developers** (`https://www.strava.com/settings/api`)
    - Authorization Callback Domain: `jog.onlypearson.com` (전체 URL이 아닌 도메인만 등록)
+3. **Strava Webhook은 현재 보류 상태.** Strava가 API 정책을 변경해 Push Subscription(Webhook) 기능이 승인/유료 등급 앱에만 열리는 것으로 확인됨(`register_webhook.py` 실행 시 `403 Forbidden`, `Application Status: Inactive`). 자동 동기화 없이도 앱 자체의 **수동 동기화**(`POST /api/v1/activities/sync`, 프론트엔드 동기화 버튼)로 정상 사용 가능하므로, Strava가 향후 앱을 승인해주면 아래 명령으로 재시도한다.
+
+   ```bash
+   cd backend
+   uv run python scripts/register_webhook.py \
+     --callback-url https://jog.onlypearson.com/api/v1/webhook/strava \
+     --force
+   ```
+
+   실행 시 `ModuleNotFoundError: No module named 'app'`가 나면 `PYTHONPATH=.`을 붙여서 실행할 것 (`backend/` 디렉토리 기준 상대 임포트 문제).
 3. **Strava Webhook 재등록**
 
 ```bash
