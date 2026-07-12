@@ -163,48 +163,58 @@ uv run python scripts/register_webhook.py \
 | GET | `/api/v1/public/users/{user_id}/statistics/yearly` | 공개 사용자 연별 통계 |
 | GET | `/api/v1/public/users/{user_id}/statistics/monthly` | 공개 사용자 월별 통계 (`?year=`) |
 
-## Railway 배포
+## 라즈베리파이 자가호스팅 배포
 
-FastAPI가 Vue 빌드 결과물을 직접 서빙하는 단일 서비스 구조로 Railway에 배포합니다.
+FastAPI가 Vue 빌드 결과물을 직접 서빙하는 단일 서비스 구조를, 라즈베리파이5(Home Assistant OS) + Cloudflare Tunnel + `docker compose`로 자가호스팅합니다.
 
 ```
-Railway 프로젝트
-├── Web Service (FastAPI + Vue 정적 파일)
-│   ├── /api/v1/*  → FastAPI 라우터
-│   └── /*         → Vue SPA (index.html)
-└── PostgreSQL Plugin
+라즈베리파이5 (HAOS)
+├── docker compose (docker-compose.prod.yml)
+│   ├── app 컨테이너 (FastAPI + Vue 정적 파일, 127.0.0.1:8000)
+│   └── db 컨테이너 (PostgreSQL, 내부 네트워크 전용)
+└── Cloudflare Tunnel (cloudflared, HA와 동일 터널)
+    └── jog.onlypearson.com → localhost:8000
 ```
 
 ### 배포 절차
 
-1. **GitHub push** 후 [railway.app](https://railway.app) → New Project → GitHub 저장소 연결
-   - `railway.toml`을 자동 인식해 `build.sh` 실행 (프론트엔드 빌드 → 백엔드 설치 → DB 마이그레이션)
-
-2. **PostgreSQL 추가**: 프로젝트 → + New → Database → PostgreSQL
-   - 발급된 `DATABASE_URL`에서 `postgresql://` → `postgresql+asyncpg://` 로 변경해 환경변수에 입력
-
-3. **환경변수 설정** (Web Service → Variables):
-   ```
-   DATABASE_URL        = postgresql+asyncpg://...
-   GOOGLE_CLIENT_ID    =
-   GOOGLE_CLIENT_SECRET=
-   STRAVA_CLIENT_ID    =
-   STRAVA_CLIENT_SECRET=
-   STRAVA_WEBHOOK_VERIFY_TOKEN = jog-post-webhook
-   JWT_SECRET_KEY      =
-   LLM_PROVIDER        = groq
-   LLM_API_KEY         =
-   LLM_MODEL           = llama-3.3-70b-versatile
-   FRONTEND_URL        = https://[앱이름].railway.app
+1. **라즈베리파이에서 저장소 클론** (SSH 애드온으로 접근)
+   ```bash
+   git clone <repo-url>
+   cd jog-post
    ```
 
-4. **OAuth 리디렉션 URI 업데이트**:
-   - Google Cloud Console: `https://[앱이름].railway.app/api/v1/auth/google/callback`
-   - Strava Developers: Authorization Callback Domain → `[앱이름].railway.app`
+2. **환경변수 배치**: 로컬에서 채운 `.env`를 `scp`로 전달 후 권한 제한
+   ```bash
+   scp .env <user>@<rpi-host>:/path/to/jog-post/.env
+   ssh <user>@<rpi-host> chmod 600 /path/to/jog-post/.env
+   ```
+   프로덕션에서는 `FRONTEND_URL=https://jog.onlypearson.com`, `POSTGRES_PASSWORD`는 강한 값으로 설정합니다.
 
-5. **Strava Webhook 재등록**:
+3. **빌드 및 기동**
+   ```bash
+   docker compose -f docker-compose.prod.yml up -d --build
+   docker compose -f docker-compose.prod.yml logs -f app   # 마이그레이션/기동 확인
+   ```
+
+4. **Cloudflare Tunnel에 서브도메인 추가**: Zero Trust 대시보드 → Networks → Tunnels → 기존 HA 터널 → Public Hostname 추가 (`jog.onlypearson.com` → `localhost:8000` 또는 라즈베리파이 LAN IP)
+
+5. **OAuth 리디렉션 URI 업데이트**:
+   - Google Cloud Console: `https://jog.onlypearson.com/api/v1/auth/google/callback`
+   - Strava Developers: Authorization Callback Domain → `jog.onlypearson.com`
+
+6. **Strava Webhook 재등록**:
    ```bash
    cd backend
    uv run python scripts/register_webhook.py \
-     --callback-url https://[앱이름].railway.app/api/v1/webhook/strava
+     --callback-url https://jog.onlypearson.com/api/v1/webhook/strava
    ```
+
+7. **재배포 시**:
+   ```bash
+   git pull
+   docker compose -f docker-compose.prod.yml build
+   docker compose -f docker-compose.prod.yml up -d
+   ```
+
+자세한 절차와 트러블슈팅은 [`docs/deployment-rpi.md`](docs/deployment-rpi.md) 참고.

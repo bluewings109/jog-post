@@ -170,33 +170,39 @@ class LLMClient(Protocol):
 - 시스템 프롬프트에 "반드시 한국어로만 답변" 명시 — Llama 계열 모델의 언어 혼용(일본어 등) 억제
 - Groq/Llama 사용 시 언어 혼용이 발생하면 `temperature`를 `0.2~0.3`으로 낮춰볼 것
 
-## 배포 구조 (Railway)
+## 배포 구조 (라즈베리파이5 자가호스팅)
 
-단일 서비스로 FastAPI가 Vue 빌드 결과물을 직접 서빙합니다.
+단일 서비스로 FastAPI가 Vue 빌드 결과물을 직접 서빙합니다. 라즈베리파이5(Home Assistant OS) 위에서 `docker compose`로 앱+DB 컨테이너를 기동하고, 기존 HA용 Cloudflare Tunnel에 서브도메인(`jog.onlypearson.com`)을 추가해 외부에 노출합니다.
 
 ```
-Railway 프로젝트
-├── Web Service (FastAPI + Vue 정적 파일)
-│   ├── /api/v1/*  → FastAPI 라우터
-│   └── /*         → Vue SPA (index.html 폴백)
-└── PostgreSQL Plugin
+라즈베리파이5 (HAOS)
+├── docker compose (docker-compose.prod.yml)
+│   ├── app 컨테이너 (FastAPI + Vue 정적 파일, 127.0.0.1:8000)
+│   │   ├── /api/v1/*  → FastAPI 라우터
+│   │   └── /*         → Vue SPA (index.html 폴백)
+│   └── db 컨테이너 (PostgreSQL, 내부 네트워크 전용)
+└── Cloudflare Tunnel (cloudflared) → jog.onlypearson.com
 ```
 
 ### 핵심 파일
 
 | 파일 | 역할 |
 |------|------|
-| `railway.toml` | 빌드·시작 명령, 헬스체크 경로 설정 |
-| `build.sh` | 프론트엔드 빌드 → 백엔드 의존성 설치 → DB 마이그레이션 |
+| `Dockerfile` | 멀티스테이지 빌드(프론트 빌드 → 백엔드 설치) + CMD로 마이그레이션·uvicorn 기동 |
+| `docker-compose.prod.yml` | app + db 서비스, healthcheck, `restart: unless-stopped` |
+| `.env` (git 미추적) | 라즈베리파이에 `scp`로 배치하는 실제 운영 환경변수 |
 | `backend/app/main.py` | `frontend/dist` 존재 시 정적 파일 서빙 + SPA 폴백 라우트 |
 
 ### 배포 절차
 
-1. GitHub push → Railway에서 `build.sh` 자동 실행
-2. Railway 프로젝트에 PostgreSQL 플러그인 추가
-3. 환경변수 설정 (`DATABASE_URL`, `GOOGLE_*`, `STRAVA_*`, `JWT_SECRET_KEY`, `LLM_*`, `FRONTEND_URL`)
-4. Google Cloud Console / Strava Developers에서 리디렉션 URI를 배포 URL로 업데이트
-5. Strava Webhook 재등록 (`scripts/register_webhook.py --callback-url https://앱.railway.app/...`)
+1. 라즈베리파이에서 `git clone` (최초 1회) 또는 `git pull` (재배포)
+2. `.env`를 `scp`로 배치 (`FRONTEND_URL=https://jog.onlypearson.com`, `POSTGRES_PASSWORD` 운영값 설정)
+3. `docker compose -f docker-compose.prod.yml up -d --build`
+4. Cloudflare Zero Trust 대시보드에서 기존 HA 터널에 Public Hostname 추가 (`jog.onlypearson.com` → `localhost:8000`)
+5. Google Cloud Console / Strava Developers에서 리디렉션 URI를 `jog.onlypearson.com` 기준으로 업데이트
+6. Strava Webhook 재등록 (`scripts/register_webhook.py --callback-url https://jog.onlypearson.com/api/v1/webhook/strava`)
+
+자세한 절차는 [`docs/deployment-rpi.md`](docs/deployment-rpi.md) 참고.
 
 ### 로컬 vs 프로덕션 API 경로
 
@@ -213,7 +219,7 @@ Railway 프로젝트
 | 인증/데이터 분리 | Google(identity) + Strava(data)를 분리해 다중 데이터 소스 확장 용이 |
 | splits_metric 별도 테이블 없음 | raw_json에서 computed_field로 파싱 → 마이그레이션 불필요 |
 | Alembic sync 연결 | `env.py`에서 `postgresql+asyncpg://` → `postgresql://` 변환 (Alembic은 sync 엔진 사용) |
-| 단일 서비스 배포 | FastAPI가 Vue 빌드 정적 파일 직접 서빙 → Railway 단일 서비스로 운영 가능 |
+| 단일 서비스 배포 | FastAPI가 Vue 빌드 정적 파일 직접 서빙 → 컨테이너 하나로 운영 가능 |
 
 ## 환경 변수
 
@@ -255,4 +261,4 @@ FRONTEND_URL=http://localhost:5173
 | 3 | Strava Webhook + 활동 자동 저장 | ✅ 완료 |
 | 4 | 활동 조회 API + 프론트엔드 (지도, km구간, 랩) | ✅ 완료 |
 | 5 | LLM 조언 연동 (SSE 스트리밍) | ✅ 완료 |
-| 6 | Railway 단일 서비스 배포 (FastAPI + Vue SPA) | ✅ 완료 |
+| 6 | 라즈베리파이5 자가호스팅 배포 (docker compose + Cloudflare Tunnel) | 🚧 진행 중 |
