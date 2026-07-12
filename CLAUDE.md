@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 프로젝트 개요
 
-**JOG-POST**는 Strava API를 통해 사용자의 달리기 기록을 자동으로 수집·저장하고, 운동 데이터를 조회하며, LLM을 연동하여 기록 향상 조언을 제공하는 멀티 사용자 서비스입니다.
+**JOG-POST**는 Apple Health(Health Auto Export 앱)를 통해 사용자의 달리기 기록을 자동으로 수집·저장하고, 운동 데이터를 조회하며, LLM을 연동하여 기록 향상 조언을 제공하는 멀티 사용자 서비스입니다.
 
 모노레포 구조로, `backend/`(FastAPI + PostgreSQL)와 `frontend/`(Vue 3 + Vuetify)가 단일 저장소에서 관리됩니다.
 
@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | DB | PostgreSQL (asyncpg 드라이버, Alembic 마이그레이션은 psycopg2-binary 사용) |
 | Frontend | Vue 3 + TypeScript, Vuetify 3, Pinia, Vue Router, Axios |
 | 인증 | Google OAuth2 + JWT (HttpOnly 쿠키) |
-| 데이터 연동 | Strava OAuth2 (`data_sources` 테이블로 관리, 향후 Apple Health 등 확장 가능) |
+| 데이터 연동 | Apple Health(Health Auto Export 앱 webhook push, `data_sources` 테이블에 시크릿 저장) |
 | LLM | Protocol 기반 추상화 (`services/llm.py`) — OpenAI / Anthropic / Gemini / Groq 교체 가능 |
 
 ## 개발 명령어
@@ -47,42 +47,39 @@ npm run type-check   # TypeScript 타입 체크
 docker compose up -d   # PostgreSQL 컨테이너 시작 (Docker Desktop WSL 통합 활성화 필요)
 ```
 
-### Strava Webhook 로컬 테스트
+### Apple Health(Health Auto Export) 웹훅 로컬 테스트
 
 ```bash
 ngrok http 8000
-cd backend
-uv run python scripts/register_webhook.py \
-  --callback-url https://<ngrok-id>.ngrok.io/api/v1/webhook/strava
 ```
+1. 프로필 페이지에서 Apple Health 연동 → 시크릿/URL 발급
+2. Health Auto Export 앱의 REST API 자동화 설정에서 URL을 `https://<ngrok-id>.ngrok.io/api/v1/webhook/apple-health`로, 커스텀 헤더에 `X-Webhook-Secret: <발급받은 시크릿>` 추가
+3. 앱에서 수동 export 실행 → 활동 목록에서 확인
 
 ## 프로젝트 구조
 
 ```
 backend/app/
 ├── api/v1/
-│   ├── auth.py          # Google/Strava OAuth 엔드포인트 + PATCH /auth/me (is_public 설정)
-│   ├── activities.py    # 활동 목록/상세/동기화/삭제
+│   ├── auth.py          # Google OAuth + Apple Health 연동(시크릿 발급/해제) + PATCH /auth/me (is_public 설정)
+│   ├── activities.py    # 활동 목록/상세/삭제
 │   ├── advice.py        # LLM 조언 SSE 스트리밍
 │   ├── statistics.py    # 주별/월별/연별 통계 (인증 필요)
 │   ├── public.py        # 공개 사용자 정보 + 통계 (인증 불필요)
-│   └── webhook.py       # Strava Webhook 수신
+│   └── webhook.py       # Apple Health(Health Auto Export) Webhook 수신
 ├── models/
 │   ├── user.py          # User (Google 로그인 정보)
-│   ├── data_source.py   # DataSource (Strava 토큰, 향후 확장용)
+│   ├── data_source.py   # DataSource (provider + webhook_secret)
 │   ├── activity.py      # Activity (raw_json JSONB 포함)
-│   ├── lap.py           # Lap (사용자 정의 랩)
 │   └── llm_advice.py    # LLMAdvice (조언 이력)
 ├── schemas/
 │   ├── activity.py      # ActivityResponse, ActivityDetailResponse, SplitMetricResponse
 │   ├── advice.py        # AdviceHistoryResponse
 │   ├── statistics.py    # WeeklyStatsResponse, MonthlyStatsResponse, YearlyStatsResponse
-│   └── user.py          # UserResponse, MeResponse, MeUpdateRequest, PublicUserResponse
+│   └── user.py          # UserResponse, MeResponse, MeUpdateRequest, PublicUserResponse, AppleHealthConnectResponse
 ├── services/
 │   ├── google_auth.py   # Google OAuth 흐름
-│   ├── strava_auth.py   # Strava OAuth + 토큰 갱신
-│   ├── strava_api.py    # Strava REST API 호출
-│   ├── activity_sync.py # Webhook/수동 동기화 비즈니스 로직
+│   ├── apple_health.py  # 웹훅 시크릿 관리 + 워크아웃 매핑/upsert + 1km 구간 계산
 │   └── llm.py           # LLMClient Protocol + AnthropicClient/OpenAIClient/GeminiClient/GroqClient
 └── core/
     ├── config.py        # Pydantic Settings (환경변수 단일 진실 공급원)
@@ -91,22 +88,21 @@ backend/app/
 
 frontend/src/
 ├── views/
-│   ├── HomeView.vue           # 로그인/Strava 연동 랜딩
-│   ├── ActivityListView.vue   # 활동 목록 + 동기화 버튼
-│   ├── ActivityDetailView.vue # 활동 상세 (탭: km구간/랩, 지도, AI조언)
+│   ├── HomeView.vue           # 로그인/Apple Health 연동 랜딩
+│   ├── ActivityListView.vue   # 활동 목록
+│   ├── ActivityDetailView.vue # 활동 상세 (km 구간, 지도, AI조언)
 │   ├── AdviceView.vue         # 종합 훈련 조언
 │   ├── StatisticsView.vue     # 주별/월별/연별 통계 (인증 필요)
-│   ├── ProfileView.vue        # 프로필 설정 + is_public 토글 (인증 필요)
+│   ├── ProfileView.vue        # 프로필 설정 + is_public 토글 + Apple Health 연동 (인증 필요)
 │   └── PublicProfileView.vue  # 공개 프로필 + 통계 (인증 불필요, /public/:userId)
 ├── components/
 │   ├── ActivityCard.vue      # 목록 카드
 │   ├── ActivityStats.vue     # 핵심 통계 (거리/페이스/심박 등)
 │   ├── SplitsTable.vue       # km 구간별 메트릭 테이블
-│   ├── LapTable.vue          # 사용자 랩 테이블
 │   ├── RouteMap.vue          # Leaflet.js 경로 지도
 │   └── AdviceChat.vue        # SSE 스트리밍 AI 조언 표시
 ├── stores/
-│   ├── auth.ts               # 인증 상태 + updatePublicSetting() (Pinia)
+│   ├── auth.ts               # 인증 상태 + updatePublicSetting()/connectAppleHealth()/disconnectAppleHealth() (Pinia)
 │   ├── activities.ts         # 활동 데이터 (Pinia)
 │   └── statistics.ts         # 통계 데이터 (Pinia)
 └── api/
@@ -114,38 +110,46 @@ frontend/src/
     ├── activities.ts         # 활동 API
     ├── advice.ts             # 조언 API (SSE)
     ├── statistics.ts         # 통계 API (인증 필요)
+    ├── appleHealth.ts        # Apple Health 연동/해제 API
     └── public.ts             # 공개 API (인증 불필요)
 ```
 
 ## 핵심 아키텍처
 
-### Strava Webhook 자동 저장 흐름
+### Apple Health(Health Auto Export) 자동 저장 흐름
+
+Health Auto Export는 OAuth가 없고, 기간 기준(오늘/최근7일/마지막 동기화 이후)으로 운동 데이터를 배치 push한다. 폰이 잠금 해제된 상태에서만 동작하므로 Strava webhook 같은 진짜 실시간은 아니다.
 
 ```
-Strava → POST /api/v1/webhook/strava
-    → 200 OK 즉시 응답
-    → FastAPI BackgroundTask:
-        1. strava_athlete_id로 data_source 조회
-        2. access_token 만료 시 refresh → DB 업데이트
-        3. GET strava.com/api/v3/activities/{id} (laps, splits_metric 포함)
-        4. sport_type ∈ {Run, TrailRun, VirtualRun, Treadmill} 만 저장
-        5. activities + laps upsert (strava_id UNIQUE → 멱등성 보장)
+사용자 프로필 → POST /api/v1/auth/apple-health/connect
+    → webhook_secret 발급 (data_sources에 저장, 1회만 노출)
+    → 사용자가 Health Auto Export 앱의 커스텀 헤더(X-Webhook-Secret)에 붙여넣음
+
+Health Auto Export 앱 → POST /api/v1/webhook/apple-health
+    → X-Webhook-Secret 헤더로 data_sources 조회 → user_id 식별
+    → payload["data"]["workouts"] 배열 순회 (한 요청에 여러 운동 포함 가능)
+        1. name에 "run"이 포함되지 않으면 스킵
+        2. 거리(mi/km)·칼로리(kJ/kcal) 단위 변환
+        3. route 좌표를 polyline으로 인코딩 → summary_polyline
+        4. route의 timestamp+거리로 1km 구간을 서버에서 직접 계산 → raw_json["computed_splits"]
+        5. apple_health_id UNIQUE 기준으로 upsert (같은 운동 재전송 시 멱등)
+    → {"saved": n, "skipped": m} 동기 응답 (Strava와 달리 응답시간 제약 없어 BackgroundTask 불필요)
 ```
 
 ### splits_metric 처리 방식
 
-Strava 응답의 `splits_metric`(1km 구간 자동 분할)은 별도 테이블 없이 `Activity.raw_json` JSONB에 보관.
-- API 응답 시 `ActivityDetailResponse.splits_metric` computed_field가 `raw_json`에서 파싱해 반환
+1km 구간 데이터는 Strava처럼 API가 내려주는 게 아니라 **서버에서 GPS route로부터 직접 계산**한다 (`apple_health.py::_compute_splits`). 별도 테이블 없이 `Activity.raw_json["computed_splits"]`에 보관.
+- API 응답 시 `ActivityDetailResponse.splits_metric` computed_field가 `raw_json["computed_splits"]`를 파싱해 반환
 - `raw_json` 자체는 `Field(exclude=True)`로 API 응답에서 제외
 - AI 조언 컨텍스트 빌더(`advice.py::_build_activity_context`)도 `raw_json`에서 직접 추출해 LLM에 전달
 
 ### 인증 구조
 
-- **Google OAuth** → 사용자 identity (로그인/회원가입)
-- **Strava OAuth** → `data_sources` 테이블에 별도 저장 (access_token, refresh_token)
+- **Google OAuth** → 사용자 identity (로그인/회원가입), 완전히 별개 관심사
+- **Apple Health 연동** → `data_sources` 테이블에 `(user_id, provider="apple_health", webhook_secret)` 저장. OAuth 토큰이 아니라 사용자가 직접 발급받아 Health Auto Export 앱에 붙여넣는 시크릿으로 웹훅 요청을 인증
 - Google 로그인 성공 후 자체 JWT 발급 → HttpOnly 쿠키 전달
 - `api/deps.py::get_current_user`로 모든 보호 라우터에서 사용자 확인
-- 향후 Apple Health·Samsung Health 추가 시 `data_sources`에 행만 추가하면 됨
+- 새 웹훅 기반 데이터 소스 추가 시 `data_sources`에 provider 행만 추가하면 됨
 
 ### LLM 추상화
 
@@ -199,8 +203,8 @@ class LLMClient(Protocol):
 2. `.env`를 `scp`로 배치 (`FRONTEND_URL=https://jog.onlypearson.com`, `POSTGRES_PASSWORD` 운영값 설정)
 3. `docker compose -f docker-compose.prod.yml up -d --build`
 4. Cloudflare Zero Trust 대시보드에서 기존 HA 터널에 Public Hostname 추가 (`jog.onlypearson.com` → 라즈베리파이 LAN IP:8000, `localhost`/`homeassistant.local`은 이 환경에서 동작하지 않음 — [`docs/deployment-rpi.md`](docs/deployment-rpi.md) 참고)
-5. Google Cloud Console / Strava Developers에서 리디렉션 URI를 `jog.onlypearson.com` 기준으로 업데이트
-6. Strava Webhook 재등록은 현재 보류 — Strava API 정책 변경으로 Push Subscription이 승인/유료 등급 앱에만 열림(`403 Forbidden`, `Application Status: Inactive`). 앱은 수동 동기화로 정상 동작하며, 승인되면 `scripts/register_webhook.py --force`로 재시도
+5. Google Cloud Console에서 리디렉션 URI를 `jog.onlypearson.com` 기준으로 업데이트
+6. 프로필 페이지에서 Apple Health 연동 → 발급받은 시크릿/URL을 Health Auto Export 앱의 커스텀 헤더에 설정
 
 자세한 절차는 [`docs/deployment-rpi.md`](docs/deployment-rpi.md) 참고.
 
@@ -214,10 +218,10 @@ class LLMClient(Protocol):
 
 | 결정 | 이유 |
 |------|------|
-| `raw_json` JSONB 보관 | Strava 원본 응답 전체 저장 → 스키마 마이그레이션 없이 새 필드 활용 가능 |
-| Webhook 멱등성 | `strava_id UNIQUE + upsert` → 중복 이벤트 안전 처리 |
-| 인증/데이터 분리 | Google(identity) + Strava(data)를 분리해 다중 데이터 소스 확장 용이 |
-| splits_metric 별도 테이블 없음 | raw_json에서 computed_field로 파싱 → 마이그레이션 불필요 |
+| `raw_json` JSONB 보관 | Apple Health 원본 payload 전체 저장 → 스키마 마이그레이션 없이 새 필드 활용 가능 |
+| Webhook 멱등성 | `apple_health_id UNIQUE + upsert` → 같은 운동 재전송 시 안전 처리 |
+| 인증/데이터 분리 | Google(identity) + Apple Health(webhook_secret)를 분리해 다중 데이터 소스 확장 용이 |
+| 1km 구간 서버 계산 | Health Auto Export가 구간 데이터를 안 주므로 route로 직접 계산해 raw_json에 저장 → 마이그레이션 불필요 |
 | Alembic sync 연결 | `env.py`에서 `postgresql+asyncpg://` → `postgresql://` 변환 (Alembic은 sync 엔진 사용) |
 | 단일 서비스 배포 | FastAPI가 Vue 빌드 정적 파일 직접 서빙 → 컨테이너 하나로 운영 가능 |
 
@@ -229,11 +233,6 @@ class LLMClient(Protocol):
 # Google OAuth
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-
-# Strava OAuth
-STRAVA_CLIENT_ID=
-STRAVA_CLIENT_SECRET=
-STRAVA_WEBHOOK_VERIFY_TOKEN=jog-post-webhook
 
 # DB
 DATABASE_URL=postgresql+asyncpg://jogpost:jogpost@localhost:5432/jogpost
@@ -257,8 +256,9 @@ FRONTEND_URL=http://localhost:5173
 | Phase | 내용 | 상태 |
 |-------|------|------|
 | 1 | 기반 인프라 (uv, Vue, DB 모델, Alembic) | ✅ 완료 |
-| 2 | Google OAuth + Strava OAuth 연동 | ✅ 완료 |
-| 3 | Strava Webhook + 활동 자동 저장 | ✅ 완료 |
-| 4 | 활동 조회 API + 프론트엔드 (지도, km구간, 랩) | ✅ 완료 |
+| 2 | Google OAuth 연동 | ✅ 완료 |
+| 3 | Apple Health(Health Auto Export) Webhook + 활동 저장 | ✅ 완료 |
+| 4 | 활동 조회 API + 프론트엔드 (지도, km구간) | ✅ 완료 |
 | 5 | LLM 조언 연동 (SSE 스트리밍) | ✅ 완료 |
-| 6 | 라즈베리파이5 자가호스팅 배포 (docker compose + Cloudflare Tunnel) | ✅ 완료 (Strava Webhook 자동 동기화만 정책상 보류, 수동 동기화로 대체) |
+| 6 | 라즈베리파이5 자가호스팅 배포 (docker compose + Cloudflare Tunnel) | ✅ 완료 |
+| 7 | Strava → Apple Health 데이터 소스 전환 (Strava API 유료화 대응) | ✅ 완료 |

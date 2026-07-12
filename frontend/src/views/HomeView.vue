@@ -28,21 +28,21 @@
                 내 활동 보기
               </v-btn>
             </v-col>
-            <v-col v-if="!hasStrava" cols="auto">
+            <v-col v-if="!hasAppleHealth" cols="auto">
               <v-btn
                 color="deep-orange"
                 size="large"
                 variant="tonal"
-                :href="`${apiBase}/api/v1/auth/strava/connect`"
+                to="/profile"
                 prepend-icon="mdi-link"
               >
-                Strava 연동
+                Apple Health 연동
               </v-btn>
             </v-col>
           </v-row>
 
-          <v-alert v-if="!hasStrava" type="info" variant="tonal" class="mt-6 text-left">
-            Strava를 연동하면 달리기가 끝날 때마다 자동으로 기록이 저장됩니다.
+          <v-alert v-if="!hasAppleHealth" type="info" variant="tonal" class="mt-6 text-left">
+            프로필 페이지에서 Apple Health(Health Auto Export)를 연동하면 달리기 기록을 자동으로 가져올 수 있습니다.
           </v-alert>
         </template>
       </v-col>
@@ -57,7 +57,7 @@ import { useAuthStore } from '@/stores/auth'
 const apiBase = import.meta.env.VITE_API_URL ?? ''
 const authStore = useAuthStore()
 
-const hasStrava = computed(() =>
-  authStore.user?.data_sources?.some((ds: { provider: string }) => ds.provider === 'strava'),
+const hasAppleHealth = computed(() =>
+  authStore.user?.data_sources?.some((ds: { provider: string }) => ds.provider === 'apple_health'),
 )
 </script>

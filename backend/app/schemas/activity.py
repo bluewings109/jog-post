@@ -3,28 +3,9 @@ from datetime import datetime
 from pydantic import BaseModel, Field, computed_field
 
 
-class LapResponse(BaseModel):
-    id: int
-    strava_id: int
-    lap_index: int
-    name: str | None
-    elapsed_time: int | None
-    moving_time: int | None
-    distance: float | None
-    average_speed: float | None
-    max_speed: float | None
-    average_cadence: float | None
-    average_heartrate: float | None
-    max_heartrate: float | None
-    total_elevation_gain: float | None
-    pace_zone: int | None
-
-    model_config = {"from_attributes": True}
-
-
 class ActivityResponse(BaseModel):
     id: int
-    strava_id: int
+    apple_health_id: str
     name: str | None
     sport_type: str | None
     start_date: datetime
@@ -42,9 +23,6 @@ class ActivityResponse(BaseModel):
     calories: float | None
     suffer_score: int | None
     summary_polyline: str | None
-    achievement_count: int
-    kudos_count: int
-    pr_count: int
     trainer: bool
     commute: bool
 
@@ -71,15 +49,15 @@ class SplitMetricResponse(BaseModel):
 
 
 class ActivityDetailResponse(ActivityResponse):
-    laps: list[LapResponse] = []
     raw_json: dict | None = Field(default=None, exclude=True)
 
     @computed_field
     @property
     def splits_metric(self) -> list[SplitMetricResponse]:
+        """route의 timestamp+거리로 서버에서 계산한 1km 구간 데이터."""
         if not self.raw_json:
             return []
-        raw = self.raw_json.get("splits_metric", [])
+        raw = self.raw_json.get("computed_splits", [])
         return [SplitMetricResponse(**s) for s in raw if isinstance(s, dict)]
 
 

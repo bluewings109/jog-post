@@ -1,7 +1,6 @@
 """활동 API 엔드포인트 테스트."""
 
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -9,8 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import create_access_token
 from app.models.activity import Activity
-from app.models.data_source import DataSource
-from app.models.lap import Lap
 from app.models.user import User
 
 
@@ -33,7 +30,7 @@ async def _create_user(db: AsyncSession, suffix: str = "01") -> User:
 async def _create_activity(
     db: AsyncSession,
     user_id: int,
-    strava_id: int = 10001,
+    apple_health_id: str = "ah-10001",
     start_date: datetime | None = None,
     distance: float = 5000.0,
 ) -> Activity:
@@ -41,9 +38,9 @@ async def _create_activity(
         start_date = datetime(2024, 6, 1, 5, 30, tzinfo=timezone.utc)
     activity = Activity(
         user_id=user_id,
-        strava_id=strava_id,
+        apple_health_id=apple_health_id,
         name="Morning Run",
-        sport_type="Run",
+        sport_type="Running",
         start_date=start_date,
         start_date_local=start_date,
         distance=distance,
@@ -85,15 +82,15 @@ async def test_list_activities_returns_own_activities(client: AsyncClient, db: A
     """자신의 활동만 반환한다 (타인 활동 미포함)."""
     user_a = await _create_user(db, "list02a")
     user_b = await _create_user(db, "list02b")
-    await _create_activity(db, user_a.id, strava_id=20001)
-    await _create_activity(db, user_b.id, strava_id=20002)
+    await _create_activity(db, user_a.id, apple_health_id="ah-20001")
+    await _create_activity(db, user_b.id, apple_health_id="ah-20002")
     await db.commit()
 
     resp = await client.get("/api/v1/activities", cookies=_auth_cookie(user_a.id))
     assert resp.status_code == 200
     data = resp.json()
     assert data["total"] == 1
-    assert data["items"][0]["strava_id"] == 20001
+    assert data["items"][0]["apple_health_id"] == "ah-20001"
 
 
 @pytest.mark.asyncio
@@ -104,7 +101,7 @@ async def test_list_activities_pagination(client: AsyncClient, db: AsyncSession)
         await _create_activity(
             db,
             user.id,
-            strava_id=30000 + i,
+            apple_health_id=f"ah-30{i}",
             start_date=datetime(2024, 6, i + 1, tzinfo=timezone.utc),
         )
     await db.commit()
@@ -129,17 +126,17 @@ async def test_list_activities_ordered_by_latest(client: AsyncClient, db: AsyncS
     """최신순(start_date DESC)으로 정렬된다."""
     user = await _create_user(db, "list04")
     await _create_activity(
-        db, user.id, strava_id=40001, start_date=datetime(2024, 1, 1, tzinfo=timezone.utc)
+        db, user.id, apple_health_id="ah-40001", start_date=datetime(2024, 1, 1, tzinfo=timezone.utc)
     )
     await _create_activity(
-        db, user.id, strava_id=40002, start_date=datetime(2024, 6, 1, tzinfo=timezone.utc)
+        db, user.id, apple_health_id="ah-40002", start_date=datetime(2024, 6, 1, tzinfo=timezone.utc)
     )
     await db.commit()
 
     resp = await client.get("/api/v1/activities", cookies=_auth_cookie(user.id))
     items = resp.json()["items"]
-    assert items[0]["strava_id"] == 40002  # 더 최신
-    assert items[1]["strava_id"] == 40001
+    assert items[0]["apple_health_id"] == "ah-40002"  # 더 최신
+    assert items[1]["apple_health_id"] == "ah-40001"
 
 
 @pytest.mark.asyncio
@@ -147,13 +144,13 @@ async def test_list_activities_date_filter(client: AsyncClient, db: AsyncSession
     """start_date / end_date 필터가 동작한다."""
     user = await _create_user(db, "list05")
     await _create_activity(
-        db, user.id, strava_id=50001, start_date=datetime(2024, 1, 15, tzinfo=timezone.utc)
+        db, user.id, apple_health_id="ah-50001", start_date=datetime(2024, 1, 15, tzinfo=timezone.utc)
     )
     await _create_activity(
-        db, user.id, strava_id=50002, start_date=datetime(2024, 3, 15, tzinfo=timezone.utc)
+        db, user.id, apple_health_id="ah-50002", start_date=datetime(2024, 3, 15, tzinfo=timezone.utc)
     )
     await _create_activity(
-        db, user.id, strava_id=50003, start_date=datetime(2024, 6, 15, tzinfo=timezone.utc)
+        db, user.id, apple_health_id="ah-50003", start_date=datetime(2024, 6, 15, tzinfo=timezone.utc)
     )
     await db.commit()
 
@@ -164,14 +161,14 @@ async def test_list_activities_date_filter(client: AsyncClient, db: AsyncSession
     )
     data = resp.json()
     assert data["total"] == 1
-    assert data["items"][0]["strava_id"] == 50002
+    assert data["items"][0]["apple_health_id"] == "ah-50002"
 
 
 @pytest.mark.asyncio
 async def test_list_activities_includes_pace(client: AsyncClient, db: AsyncSession):
     """응답에 average_pace_sec_per_km computed field가 포함된다."""
     user = await _create_user(db, "list06")
-    await _create_activity(db, user.id, strava_id=60001)
+    await _create_activity(db, user.id, apple_health_id="ah-60001")
     await db.commit()
 
     resp = await client.get("/api/v1/activities", cookies=_auth_cookie(user.id))
@@ -195,20 +192,9 @@ async def test_list_activities_unauthenticated(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_get_activity_detail(client: AsyncClient, db: AsyncSession):
-    """활동 상세와 랩 목록을 반환한다."""
+    """활동 상세를 반환한다."""
     user = await _create_user(db, "det01")
-    activity = await _create_activity(db, user.id, strava_id=70001)
-    lap = Lap(
-        activity_id=activity.id,
-        strava_id=700010,
-        lap_index=1,
-        name="Lap 1",
-        elapsed_time=1800,
-        moving_time=1800,
-        distance=5000.0,
-        average_speed=2.78,
-    )
-    db.add(lap)
+    activity = await _create_activity(db, user.id, apple_health_id="ah-70001")
     await db.commit()
 
     resp = await client.get(
@@ -216,9 +202,7 @@ async def test_get_activity_detail(client: AsyncClient, db: AsyncSession):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["strava_id"] == 70001
-    assert len(data["laps"]) == 1
-    assert data["laps"][0]["lap_index"] == 1
+    assert data["apple_health_id"] == "ah-70001"
 
 
 @pytest.mark.asyncio
@@ -236,7 +220,7 @@ async def test_get_activity_detail_other_user(client: AsyncClient, db: AsyncSess
     """타인의 활동 조회 시 404를 반환한다."""
     user_a = await _create_user(db, "det03a")
     user_b = await _create_user(db, "det03b")
-    activity = await _create_activity(db, user_b.id, strava_id=80001)
+    activity = await _create_activity(db, user_b.id, apple_health_id="ah-80001")
     await db.commit()
 
     resp = await client.get(
@@ -253,10 +237,8 @@ async def test_get_activity_detail_other_user(client: AsyncClient, db: AsyncSess
 @pytest.mark.asyncio
 async def test_delete_activity(client: AsyncClient, db: AsyncSession):
     """활동 삭제 후 204를 반환하고 DB에서 제거된다."""
-    from sqlalchemy import select
-
     user = await _create_user(db, "del01")
-    activity = await _create_activity(db, user.id, strava_id=90001)
+    activity = await _create_activity(db, user.id, apple_health_id="ah-90001")
     await db.commit()
 
     resp = await client.delete(
@@ -283,50 +265,10 @@ async def test_delete_activity_other_user(client: AsyncClient, db: AsyncSession)
     """타인의 활동은 삭제할 수 없다."""
     user_a = await _create_user(db, "del03a")
     user_b = await _create_user(db, "del03b")
-    activity = await _create_activity(db, user_b.id, strava_id=90002)
+    activity = await _create_activity(db, user_b.id, apple_health_id="ah-90002")
     await db.commit()
 
     resp = await client.delete(
         f"/api/v1/activities/{activity.id}", cookies=_auth_cookie(user_a.id)
     )
     assert resp.status_code == 404
-
-
-# ─────────────────────────────────────────────
-# POST /activities/sync
-# ─────────────────────────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_sync_activities_no_strava_connection(client: AsyncClient, db: AsyncSession):
-    """Strava 연동이 없으면 400을 반환한다."""
-    user = await _create_user(db, "sync01")
-    await db.commit()
-
-    resp = await client.post("/api/v1/activities/sync", cookies=_auth_cookie(user.id))
-    assert resp.status_code == 400
-
-
-@pytest.mark.asyncio
-async def test_sync_activities_with_strava(client: AsyncClient, db: AsyncSession):
-    """Strava 연동이 있으면 sync를 실행하고 synced 카운트를 반환한다."""
-    user = await _create_user(db, "sync02")
-    ds = DataSource(
-        user_id=user.id,
-        provider="strava",
-        external_id="99887766",
-        access_token="fake-token",
-        refresh_token="fake-refresh",
-        token_expires_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
-        scopes="activity:read_all",
-    )
-    db.add(ds)
-    await db.commit()
-
-    with patch(
-        "app.api.v1.activities.sync_activities_bulk", new_callable=AsyncMock, return_value=3
-    ):
-        resp = await client.post("/api/v1/activities/sync", cookies=_auth_cookie(user.id))
-
-    assert resp.status_code == 200
-    assert resp.json() == {"synced": 3}

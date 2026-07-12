@@ -29,12 +29,12 @@ async def _create_user(db: AsyncSession, suffix: str) -> User:
     return user
 
 
-async def _create_activity(db: AsyncSession, user_id: int, strava_id: int = 99001) -> Activity:
+async def _create_activity(db: AsyncSession, user_id: int, apple_health_id: str = "ah-99001") -> Activity:
     activity = Activity(
         user_id=user_id,
-        strava_id=strava_id,
+        apple_health_id=apple_health_id,
         name="Test Run",
-        sport_type="Run",
+        sport_type="Running",
         start_date=datetime(2024, 6, 1, 5, 30, tzinfo=timezone.utc),
         start_date_local=datetime(2024, 6, 1, 14, 30, tzinfo=timezone.utc),
         distance=10000.0,
@@ -67,7 +67,7 @@ async def _fake_stream(*tokens: str):
 async def test_advice_activity_streams_sse(client: AsyncClient, db: AsyncSession):
     """활동 조언이 SSE 형식으로 반환된다."""
     user = await _create_user(db, "act01")
-    activity = await _create_activity(db, user.id, strava_id=110001)
+    activity = await _create_activity(db, user.id, apple_health_id="ah-110001")
     await db.commit()
 
     mock_llm = MagicMock()
@@ -108,7 +108,7 @@ async def test_advice_activity_other_user(client: AsyncClient, db: AsyncSession)
     """타인 활동에 조언 요청 시 404."""
     user_a = await _create_user(db, "act03a")
     user_b = await _create_user(db, "act03b")
-    activity = await _create_activity(db, user_b.id, strava_id=110002)
+    activity = await _create_activity(db, user_b.id, apple_health_id="ah-110002")
     await db.commit()
 
     with patch("app.api.v1.advice.get_llm_client"):
@@ -125,7 +125,7 @@ async def test_advice_activity_saves_to_db(client: AsyncClient, db: AsyncSession
     from sqlalchemy import select
 
     user = await _create_user(db, "act04")
-    activity = await _create_activity(db, user.id, strava_id=110003)
+    activity = await _create_activity(db, user.id, apple_health_id="ah-110003")
     await db.commit()
 
     mock_llm = MagicMock()
@@ -165,7 +165,7 @@ async def test_advice_activity_unauthenticated(client: AsyncClient):
 async def test_advice_general_streams_sse(client: AsyncClient, db: AsyncSession):
     """종합 조언이 SSE 형식으로 반환된다."""
     user = await _create_user(db, "gen01")
-    await _create_activity(db, user.id, strava_id=120001)
+    await _create_activity(db, user.id, apple_health_id="ah-120001")
     await db.commit()
 
     mock_llm = MagicMock()
@@ -266,7 +266,7 @@ def test_build_activity_context_basic():
     activity = Activity(
         id=1,
         user_id=1,
-        strava_id=1,
+        apple_health_id="ah-1",
         name="Morning Run",
         sport_type="Run",
         start_date=datetime(2024, 6, 1, 5, 30, tzinfo=timezone.utc),
@@ -276,7 +276,7 @@ def test_build_activity_context_basic():
         average_speed=2.78,
         average_heartrate=155.0,
     )
-    context = _build_activity_context(activity, [])
+    context = _build_activity_context(activity)
     assert "10.00 km" in context
     assert "155 bpm" in context
     assert "5:59 /km" in context  # 1000/2.78 ≈ 359.7s → 5:59

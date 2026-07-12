@@ -1,6 +1,6 @@
 """인증 흐름 단위 테스트.
 
-외부 OAuth 호출(Google, Strava)은 monkeypatch로 대체한다.
+외부 OAuth 호출(Google)은 monkeypatch로 대체한다.
 """
 import pytest
 from httpx import AsyncClient
@@ -94,31 +94,74 @@ async def test_google_login_redirects(client: AsyncClient):
 
 
 # ────────────────────────────────────────────────────────────
-# /api/v1/auth/strava/connect — 로그인 없으면 401
+# /api/v1/auth/apple-health/connect — 로그인 없으면 401
 # ────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_strava_connect_requires_login(client: AsyncClient):
-    resp = await client.get("/api/v1/auth/strava/connect", follow_redirects=False)
+async def test_apple_health_connect_requires_login(client: AsyncClient):
+    resp = await client.post("/api/v1/auth/apple-health/connect")
     assert resp.status_code == 401
 
 
 # ────────────────────────────────────────────────────────────
-# /api/v1/auth/strava/connect — 로그인 후 Strava OAuth로 리디렉트
+# /api/v1/auth/apple-health/connect — 로그인 후 시크릿+URL 발급
 # ────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_strava_connect_redirects(client: AsyncClient, db: AsyncSession):
-    user = User(google_id="google-test-002", email="strava@example.com", name="스트라바")
+async def test_apple_health_connect_issues_secret(client: AsyncClient, db: AsyncSession):
+    user = User(google_id="google-test-002", email="ah@example.com", name="애플헬스")
     db.add(user)
     await db.commit()
     await db.refresh(user)
 
     token = create_access_token(user.id)
-    resp = await client.get(
-        "/api/v1/auth/strava/connect",
+    resp = await client.post(
+        "/api/v1/auth/apple-health/connect",
         cookies={"access_token": token},
-        follow_redirects=False,
     )
-    assert resp.status_code in (302, 307)
-    assert "strava.com" in resp.headers["location"]
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["webhook_secret"]
+    assert data["webhook_url"].endswith("/api/v1/webhook/apple-health")
+
+
+@pytest.mark.asyncio
+async def test_apple_health_connect_rotates_secret(client: AsyncClient, db: AsyncSession):
+    """재연동 시 새 시크릿이 발급되고 이전 시크릿은 무효화된다."""
+    user = User(google_id="google-test-003", email="ah2@example.com", name="애플헬스2")
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+
+    token = create_access_token(user.id)
+    first = await client.post("/api/v1/auth/apple-health/connect", cookies={"access_token": token})
+    second = await client.post("/api/v1/auth/apple-health/connect", cookies={"access_token": token})
+
+    assert first.json()["webhook_secret"] != second.json()["webhook_secret"]
+
+
+# ────────────────────────────────────────────────────────────
+# /api/v1/auth/apple-health/disconnect
+# ────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_apple_health_disconnect(client: AsyncClient, db: AsyncSession):
+    from sqlalchemy import select
+
+    from app.models.data_source import DataSource
+
+    user = User(google_id="google-test-004", email="ah3@example.com", name="애플헬스3")
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+
+    token = create_access_token(user.id)
+    await client.post("/api/v1/auth/apple-health/connect", cookies={"access_token": token})
+
+    resp = await client.delete(
+        "/api/v1/auth/apple-health/disconnect", cookies={"access_token": token}
+    )
+    assert resp.status_code == 204
+
+    remaining = await db.scalar(select(DataSource).where(DataSource.user_id == user.id))
+    assert remaining is None

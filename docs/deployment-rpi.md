@@ -39,7 +39,6 @@ ssh <user>@<rpi-host> chmod 600 /path/to/jog-post/.env
 | `POSTGRES_PASSWORD` | 로컬 개발용 기본값(`jogpost`) 대신 강한 비밀번호로 교체 |
 | `JWT_SECRET_KEY` | 운영용 랜덤 값 |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google Cloud Console 발급값 |
-| `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` | Strava Developers 발급값 |
 
 `.env`는 `.gitignore`에 의해 git에 커밋되지 않으므로 반드시 별도 경로(scp 등)로만 전달합니다.
 
@@ -79,32 +78,15 @@ curl http://127.0.0.1:8000/health
 curl -I https://jog.onlypearson.com/health
 ```
 
-## OAuth / Webhook 갱신
+## OAuth / Apple Health 연동
 
 1. **Google Cloud Console**
    - 승인된 리디렉션 URI: `https://jog.onlypearson.com/api/v1/auth/google/callback`
    - 승인된 JavaScript 원본: `https://jog.onlypearson.com`
-2. **Strava Developers** (`https://www.strava.com/settings/api`)
-   - Authorization Callback Domain: `jog.onlypearson.com` (전체 URL이 아닌 도메인만 등록)
-3. **Strava Webhook은 현재 보류 상태.** Strava가 API 정책을 변경해 Push Subscription(Webhook) 기능이 승인/유료 등급 앱에만 열리는 것으로 확인됨(`register_webhook.py` 실행 시 `403 Forbidden`, `Application Status: Inactive`). 자동 동기화 없이도 앱 자체의 **수동 동기화**(`POST /api/v1/activities/sync`, 프론트엔드 동기화 버튼)로 정상 사용 가능하므로, Strava가 향후 앱을 승인해주면 아래 명령으로 재시도한다.
-
-   ```bash
-   cd backend
-   uv run python scripts/register_webhook.py \
-     --callback-url https://jog.onlypearson.com/api/v1/webhook/strava \
-     --force
-   ```
-
-   실행 시 `ModuleNotFoundError: No module named 'app'`가 나면 `PYTHONPATH=.`을 붙여서 실행할 것 (`backend/` 디렉토리 기준 상대 임포트 문제).
-3. **Strava Webhook 재등록**
-
-```bash
-cd backend
-uv run python scripts/register_webhook.py \
-  --callback-url https://jog.onlypearson.com/api/v1/webhook/strava
-```
-
-`STRAVA_WEBHOOK_VERIFY_TOKEN`이 라즈베리파이 `.env`와 Strava 앱 설정에서 일치해야 구독이 성공합니다.
+2. **Apple Health(Health Auto Export) 연동**
+   - `https://jog.onlypearson.com`에 Google 로그인 후 프로필 페이지 → "Apple Health 연동" → `webhook_secret`과 webhook URL(`https://jog.onlypearson.com/api/v1/webhook/apple-health`) 발급 (시크릿은 이때 1회만 표시됨)
+   - Health Auto Export 앱 → Automations → New Automation → REST API → URL/헤더(`X-Webhook-Secret`)에 위 값 입력, Data Type은 **Workouts**로 설정
+   - 이 연동은 Google OAuth와 무관한 별도 흐름이며, 앱별 승인/유료 심사가 필요 없음(Strava와 달리 Apple의 공식 API가 아니라 우리가 직접 만든 webhook 수신 엔드포인트)
 
 ## 재배포 (업데이트)
 
@@ -119,8 +101,10 @@ docker compose -f docker-compose.prod.yml logs -f app
 ## 엔드투엔드 검증
 
 1. 브라우저로 `https://jog.onlypearson.com` 접속 → Google 로그인
-2. Strava 연동 → 활동 동기화 버튼으로 과거 기록 가져오기
-3. 실제 러닝 완료 후 webhook이 도달하는지 `docker compose -f docker-compose.prod.yml logs -f app`에서 확인
+2. 프로필에서 Apple Health 연동 → Health Auto Export 앱에 시크릿/URL 설정 → 수동 export 1회 실행
+3. 활동 목록에 나타나는지, 경로 지도·1km 구간이 정상 렌더링되는지 확인
+4. 같은 기간을 다시 export해도 중복 저장되지 않는지(멱등성) 확인
+5. 실제 러닝 완료 후(폰 잠금 해제 상태에서) webhook이 도달하는지 `docker compose -f docker-compose.prod.yml logs -f app`에서 확인
 
 ## 트러블슈팅
 
@@ -129,5 +113,6 @@ docker compose -f docker-compose.prod.yml logs -f app
 | `app` 컨테이너가 계속 재시작됨 | `docker compose -f docker-compose.prod.yml logs app`으로 alembic 마이그레이션 에러 확인 → `DATABASE_URL`이 `db` 서비스명을 가리키는지 확인 |
 | healthcheck가 `unhealthy`로 유지 | `docker compose -f docker-compose.prod.yml exec app curl -f http://localhost:8000/health` (또는 python으로 동일 요청)으로 컨테이너 내부에서 직접 확인, `start_period`가 짧아 기동 중 오탐인지 확인 |
 | `jog.onlypearson.com` 접속 시 502/523 | cloudflared가 가리키는 URL(`localhost:8000` vs LAN IP)이 실제 `app` 컨테이너 바인딩과 일치하는지 확인 (`docker compose -f docker-compose.prod.yml ps`로 포트 매핑 확인) |
-| Strava Webhook 구독 실패 | `STRAVA_WEBHOOK_VERIFY_TOKEN` 일치 여부, `https://jog.onlypearson.com/api/v1/webhook/strava`가 외부에서 실제로 200을 반환하는지(`curl`) 확인 |
+| Apple Health webhook이 401 반환 | Health Auto Export 앱의 `X-Webhook-Secret` 헤더 값이 프로필에서 발급받은 시크릿과 정확히 일치하는지 확인 (재연동 시 이전 시크릿은 자동 무효화됨) |
+| Apple Health export 후 활동이 안 보임 | `docker compose -f docker-compose.prod.yml logs app`에서 `saved`/`skipped` 카운트 확인 — workout `name`에 "run"이 없으면 스킵됨(달리기 외 운동) |
 | alembic 마이그레이션 실패 후 롤백 필요 | `docker compose -f docker-compose.prod.yml run --rm app sh -c "cd /app/backend && uv run alembic downgrade -1"`로 직전 리비전으로 롤백 후 원인 조사 |

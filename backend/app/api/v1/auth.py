@@ -9,8 +9,8 @@ from app.core.database import get_db
 from app.core.security import create_access_token
 from app.models.data_source import DataSource
 from app.models.user import User
-from app.schemas.user import DataSourceResponse, MeResponse, MeUpdateRequest
-from app.services import google_auth, strava_auth
+from app.schemas.user import AppleHealthConnectResponse, DataSourceResponse, MeResponse, MeUpdateRequest
+from app.services import apple_health, google_auth
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -27,10 +27,6 @@ _COOKIE_OPTS = {
 
 def _google_redirect_uri(request: Request) -> str:
     return str(request.base_url) + "api/v1/auth/google/callback"
-
-
-def _strava_redirect_uri(request: Request) -> str:
-    return str(request.base_url) + "api/v1/auth/strava/callback"
 
 
 # ────────────────────────────────────────────────────────────
@@ -149,61 +145,30 @@ async def update_me(
 
 
 # ────────────────────────────────────────────────────────────
-# Strava OAuth (데이터 연동)
+# Apple Health (Health Auto Export 웹훅 연동)
 # ────────────────────────────────────────────────────────────
 
-@router.get("/strava/connect")
-async def strava_connect(
-    request: Request,
-    current_user: User = Depends(get_current_user),
-) -> RedirectResponse:
-    """Strava 데이터 연동 OAuth 페이지로 리디렉트한다."""
-    url, state = strava_auth.build_connect_url(_strava_redirect_uri(request))
-    response = RedirectResponse(url)
-    response.set_cookie(_OAUTH_STATE_COOKIE, state, max_age=600, **_COOKIE_OPTS)
-    return response
-
-
-@router.get("/strava/callback")
-async def strava_callback(
-    code: str,
-    state: str,
+@router.post("/apple-health/connect", response_model=AppleHealthConnectResponse)
+async def apple_health_connect(
     request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    oauth_state: str | None = Cookie(default=None),
-) -> RedirectResponse:
-    """Strava OAuth 콜백: code → token → data_sources upsert."""
-    if oauth_state is None or oauth_state != state:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OAuth state")
+) -> AppleHealthConnectResponse:
+    """Apple Health 웹훅 시크릿을 발급(또는 재발급)한다.
 
-    try:
-        token_data = await strava_auth.exchange_code(code)
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail="Strava OAuth failed"
-        )
-
-    await strava_auth.upsert_data_source(current_user.id, token_data, db)
-
-    redirect = RedirectResponse(url=settings.FRONTEND_URL + "/activities")
-    redirect.delete_cookie(_OAUTH_STATE_COOKIE)
-    return redirect
+    반환되는 webhook_secret은 이때 1회만 노출되며, 이후 다시 조회할 수 없다.
+    """
+    data_source = await apple_health.create_or_rotate_data_source(current_user.id, db)
+    webhook_url = str(request.base_url) + "api/v1/webhook/apple-health"
+    return AppleHealthConnectResponse(
+        webhook_secret=data_source.webhook_secret, webhook_url=webhook_url
+    )
 
 
-@router.delete("/strava/disconnect", status_code=status.HTTP_204_NO_CONTENT)
-async def strava_disconnect(
+@router.delete("/apple-health/disconnect", status_code=status.HTTP_204_NO_CONTENT)
+async def apple_health_disconnect(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    """Strava 데이터 연동을 해제한다."""
-    result = await db.execute(
-        select(DataSource).where(
-            DataSource.user_id == current_user.id,
-            DataSource.provider == "strava",
-        )
-    )
-    data_source = result.scalar_one_or_none()
-    if data_source:
-        await db.delete(data_source)
-        await db.commit()
+    """Apple Health 연동을 해제한다."""
+    await apple_health.disconnect(current_user.id, db)

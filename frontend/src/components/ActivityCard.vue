@@ -42,10 +42,6 @@
           <div class="stat-label">고도</div>
           <div class="stat-value">{{ formatElevation(activity.total_elevation_gain) }}</div>
         </v-col>
-        <v-col v-if="activity.pr_count > 0" cols="4">
-          <div class="stat-label">PR</div>
-          <div class="stat-value">🏆 {{ activity.pr_count }}</div>
-        </v-col>
       </v-row>
     </v-card-text>
   </v-card>

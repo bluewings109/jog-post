@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import JSON, BigInteger, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -14,7 +14,7 @@ class Activity(Base):
     __tablename__ = "activities"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    strava_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False)
+    apple_health_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
 
     name: Mapped[str | None] = mapped_column(String(255))
@@ -39,10 +39,6 @@ class Activity(Base):
     summary_polyline: Mapped[str | None] = mapped_column(Text)
     map_id: Mapped[str | None] = mapped_column(String(100))
 
-    achievement_count: Mapped[int] = mapped_column(Integer, default=0)
-    kudos_count: Mapped[int] = mapped_column(Integer, default=0)
-    pr_count: Mapped[int] = mapped_column(Integer, default=0)
-
     trainer: Mapped[bool] = mapped_column(Boolean, default=False)
     commute: Mapped[bool] = mapped_column(Boolean, default=False)
     manual: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -55,7 +51,6 @@ class Activity(Base):
     )
 
     user: Mapped["User"] = relationship(back_populates="activities")
-    laps: Mapped[list["Lap"]] = relationship(back_populates="activity", cascade="all, delete-orphan")
     llm_advices: Mapped[list["LLMAdvice"]] = relationship(back_populates="activity")
 
     __table_args__ = (

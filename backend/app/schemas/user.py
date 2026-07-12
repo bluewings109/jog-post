@@ -27,7 +27,6 @@ class DataSourceResponse(BaseModel):
     id: int
     provider: str
     external_id: str
-    scopes: str | None
     created_at: datetime
     updated_at: datetime
 
@@ -36,3 +35,10 @@ class DataSourceResponse(BaseModel):
 
 class MeResponse(UserResponse):
     data_sources: list[DataSourceResponse]
+
+
+class AppleHealthConnectResponse(BaseModel):
+    """Apple Health 연동 시 1회만 노출되는 웹훅 시크릿과 URL."""
+
+    webhook_secret: str
+    webhook_url: str

@@ -66,6 +66,73 @@
             </v-btn>
           </div>
         </v-expand-transition>
+
+        <v-divider class="my-6" />
+
+        <!-- Apple Health 연동 -->
+        <div class="mb-2">
+          <div class="text-subtitle-1 font-weight-medium mb-1">Apple Health 연동</div>
+          <div class="text-body-2 text-medium-emphasis mb-4">
+            Health Auto Export 앱에서 아래 URL과 시크릿을 커스텀 헤더(<code>X-Webhook-Secret</code>)로 설정하면
+            운동 기록이 자동으로 저장됩니다.
+          </div>
+
+          <template v-if="!hasAppleHealth && !connectResult">
+            <v-btn
+              color="deep-orange-darken-2"
+              variant="tonal"
+              :loading="connecting"
+              prepend-icon="mdi-link"
+              @click="onConnect"
+            >
+              연동하기
+            </v-btn>
+          </template>
+
+          <template v-else-if="connectResult">
+            <v-alert type="warning" variant="tonal" density="compact" class="mb-3">
+              시크릿은 지금만 표시됩니다. 안전한 곳에 보관하세요.
+            </v-alert>
+            <div class="text-caption text-medium-emphasis mb-1">Webhook URL</div>
+            <div class="d-flex align-center ga-2 mb-3">
+              <v-text-field
+                :model-value="connectResult.webhook_url"
+                readonly
+                density="compact"
+                variant="outlined"
+                hide-details
+              />
+              <v-btn icon="mdi-content-copy" variant="tonal" size="small" @click="copy(connectResult.webhook_url)" />
+            </div>
+            <div class="text-caption text-medium-emphasis mb-1">X-Webhook-Secret</div>
+            <div class="d-flex align-center ga-2">
+              <v-text-field
+                :model-value="connectResult.webhook_secret"
+                readonly
+                density="compact"
+                variant="outlined"
+                hide-details
+              />
+              <v-btn icon="mdi-content-copy" variant="tonal" size="small" @click="copy(connectResult.webhook_secret)" />
+            </div>
+          </template>
+
+          <template v-else>
+            <v-alert type="success" variant="tonal" density="compact" class="mb-3">
+              Apple Health가 연동되어 있습니다.
+            </v-alert>
+            <v-btn
+              color="error"
+              variant="text"
+              size="small"
+              :loading="disconnecting"
+              prepend-icon="mdi-link-off"
+              @click="onDisconnect"
+            >
+              연동 해제
+            </v-btn>
+          </template>
+        </div>
       </v-card-text>
     </v-card>
 
@@ -78,16 +145,24 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import type { AppleHealthConnectResponse } from '@/api/appleHealth'
 
 const auth = useAuthStore()
 const isPublic = ref(false)
 const saving = ref(false)
 const snackbar = ref({ show: false, message: '', color: 'success' })
+const connecting = ref(false)
+const disconnecting = ref(false)
+const connectResult = ref<AppleHealthConnectResponse | null>(null)
 
 const publicUrl = computed(() => {
   if (!auth.user) return ''
   return `${window.location.origin}/public/${auth.user.id}`
 })
+
+const hasAppleHealth = computed(() =>
+  auth.user?.data_sources?.some((ds) => ds.provider === 'apple_health'),
+)
 
 onMounted(() => {
   isPublic.value = auth.user?.is_public ?? false
@@ -116,6 +191,39 @@ async function copyUrl() {
     snackbar.value = { show: true, message: 'URL이 복사되었습니다.', color: 'success' }
   } catch {
     snackbar.value = { show: true, message: 'URL 복사에 실패했습니다.', color: 'error' }
+  }
+}
+
+async function onConnect() {
+  connecting.value = true
+  try {
+    connectResult.value = await auth.connectAppleHealth()
+  } catch {
+    snackbar.value = { show: true, message: 'Apple Health 연동에 실패했습니다.', color: 'error' }
+  } finally {
+    connecting.value = false
+  }
+}
+
+async function onDisconnect() {
+  disconnecting.value = true
+  try {
+    await auth.disconnectAppleHealth()
+    connectResult.value = null
+    snackbar.value = { show: true, message: 'Apple Health 연동이 해제되었습니다.', color: 'success' }
+  } catch {
+    snackbar.value = { show: true, message: '연동 해제에 실패했습니다.', color: 'error' }
+  } finally {
+    disconnecting.value = false
+  }
+}
+
+async function copy(text: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    snackbar.value = { show: true, message: '복사되었습니다.', color: 'success' }
+  } catch {
+    snackbar.value = { show: true, message: '복사에 실패했습니다.', color: 'error' }
   }
 }
 </script>

@@ -50,7 +50,7 @@
       >
         <v-icon size="64" class="mb-3">mdi-chart-bar</v-icon>
         <div class="text-h6">{{ store.periodLabel }}에 활동 데이터가 없어요</div>
-        <div class="text-body-2 mt-1">Strava 동기화 후 활동이 있는 기간을 선택해보세요.</div>
+        <div class="text-body-2 mt-1">Apple Health 연동 후 활동이 있는 기간을 선택해보세요.</div>
       </div>
 
       <template v-else>

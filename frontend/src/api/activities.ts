@@ -2,7 +2,7 @@ import apiClient from './client'
 
 export interface Activity {
   id: number
-  strava_id: number
+  apple_health_id: string
   name: string | null
   sport_type: string | null
   start_date: string
@@ -20,9 +20,6 @@ export interface Activity {
   calories: number | null
   suffer_score: number | null
   summary_polyline: string | null
-  achievement_count: number
-  kudos_count: number
-  pr_count: number
   trainer: boolean
   commute: boolean
   average_pace_sec_per_km: number | null
@@ -40,25 +37,7 @@ export interface SplitMetric {
 }
 
 export interface ActivityDetail extends Activity {
-  laps: Lap[]
   splits_metric: SplitMetric[]
-}
-
-export interface Lap {
-  id: number
-  strava_id: number
-  lap_index: number
-  name: string | null
-  elapsed_time: number | null
-  moving_time: number | null
-  distance: number | null
-  average_speed: number | null
-  max_speed: number | null
-  average_cadence: number | null
-  average_heartrate: number | null
-  max_heartrate: number | null
-  total_elevation_gain: number | null
-  pace_zone: number | null
 }
 
 export interface ActivitiesResponse {

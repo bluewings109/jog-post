@@ -21,7 +21,7 @@
 
     <div v-if="!activitiesStore.loading && activitiesStore.activities.length === 0" class="text-center py-8 text-medium-emphasis">
       <v-icon size="48" class="mb-2">mdi-run</v-icon>
-      <div>활동이 없습니다. 먼저 Strava에서 동기화하세요.</div>
+      <div>활동이 없습니다. 프로필에서 Apple Health를 연동해보세요.</div>
     </div>
 
     <v-expansion-panels v-else variant="accordion" class="rounded-lg">

@@ -1,8 +1,8 @@
-"""initial_schema
+"""initial_schema (Google 로그인 + Apple Health 데이터 소스)
 
-Revision ID: c64ba4f8eaaf
+Revision ID: b1e6a1f0c9d2
 Revises:
-Create Date: 2026-04-12 09:54:56.341119
+Create Date: 2026-07-12 00:00:00.000000
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "c64ba4f8eaaf"
+revision: str = "b1e6a1f0c9d2"
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -27,21 +27,19 @@ def upgrade() -> None:
         sa.Column("email", sa.String(255), unique=True, nullable=False),
         sa.Column("name", sa.String(200)),
         sa.Column("picture", sa.Text()),
+        sa.Column("is_public", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
 
-    # --- data_sources (공급자별 OAuth 토큰 — 현재: strava) ---
+    # --- data_sources (웹훅 기반 데이터 소스 — 현재: apple_health) ---
     op.create_table(
         "data_sources",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("provider", sa.String(50), nullable=False),       # "strava" | ...
-        sa.Column("external_id", sa.String(100), nullable=False),   # 공급자 측 사용자 ID
-        sa.Column("access_token", sa.Text(), nullable=False),
-        sa.Column("refresh_token", sa.Text(), nullable=False),
-        sa.Column("token_expires_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("scopes", sa.Text()),
+        sa.Column("provider", sa.String(50), nullable=False),       # "apple_health" | ...
+        sa.Column("external_id", sa.String(100), nullable=False),   # 공급자 측 식별자
+        sa.Column("webhook_secret", sa.String(100), unique=True),   # 웹훅 인증용 시크릿
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
@@ -54,7 +52,7 @@ def upgrade() -> None:
     op.create_table(
         "activities",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("strava_id", sa.BigInteger(), unique=True, nullable=False),
+        sa.Column("apple_health_id", sa.String(255), unique=True, nullable=False),
         sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("name", sa.String(255)),
         sa.Column("type", sa.String(50)),
@@ -75,9 +73,6 @@ def upgrade() -> None:
         sa.Column("suffer_score", sa.Integer()),
         sa.Column("summary_polyline", sa.Text()),
         sa.Column("map_id", sa.String(100)),
-        sa.Column("achievement_count", sa.Integer(), server_default="0"),
-        sa.Column("kudos_count", sa.Integer(), server_default="0"),
-        sa.Column("pr_count", sa.Integer(), server_default="0"),
         sa.Column("trainer", sa.Boolean(), server_default="false"),
         sa.Column("commute", sa.Boolean(), server_default="false"),
         sa.Column("manual", sa.Boolean(), server_default="false"),
@@ -87,28 +82,6 @@ def upgrade() -> None:
     )
     op.create_index("idx_activities_user_id", "activities", ["user_id"])
     op.create_index("idx_activities_start_date", "activities", ["start_date"])
-
-    # --- laps ---
-    op.create_table(
-        "laps",
-        sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("strava_id", sa.BigInteger(), unique=True, nullable=False),
-        sa.Column("activity_id", sa.Integer(), sa.ForeignKey("activities.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("lap_index", sa.Integer(), nullable=False),
-        sa.Column("name", sa.String(255)),
-        sa.Column("elapsed_time", sa.Integer()),
-        sa.Column("moving_time", sa.Integer()),
-        sa.Column("distance", sa.Float()),
-        sa.Column("average_speed", sa.Float()),
-        sa.Column("max_speed", sa.Float()),
-        sa.Column("average_cadence", sa.Float()),
-        sa.Column("average_heartrate", sa.Float()),
-        sa.Column("max_heartrate", sa.Float()),
-        sa.Column("total_elevation_gain", sa.Float()),
-        sa.Column("pace_zone", sa.Integer()),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-    )
-    op.create_index("idx_laps_activity_id", "laps", ["activity_id"])
 
     # --- llm_advices ---
     op.create_table(
@@ -126,8 +99,6 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table("llm_advices")
-    op.drop_index("idx_laps_activity_id", "laps")
-    op.drop_table("laps")
     op.drop_index("idx_activities_start_date", "activities")
     op.drop_index("idx_activities_user_id", "activities")
     op.drop_table("activities")

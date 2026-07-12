@@ -1,77 +1,49 @@
-"""Strava Webhook 엔드포인트.
+"""Apple Health(Health Auto Export) Webhook 엔드포인트.
 
-GET  /webhook/strava — Strava 구독 검증 (hub.challenge)
-POST /webhook/strava — 운동 이벤트 수신 → 200 즉시 응답 + BackgroundTask
+POST /webhook/apple-health — 운동 데이터 수신 (X-Webhook-Secret 헤더로 사용자 식별)
 """
 
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
-from app.core.database import AsyncSessionLocal
-from app.services.activity_sync import sync_activity_from_webhook
+from app.core.database import get_db
+from app.services import apple_health
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/webhook", tags=["webhook"])
 
 
-@router.get("/strava")
-async def strava_verify(request: Request) -> JSONResponse:
-    """Strava 구독 검증 요청에 응답한다.
+@router.post("/apple-health", status_code=status.HTTP_200_OK)
+async def apple_health_webhook(
+    request: Request,
+    x_webhook_secret: str | None = Header(default=None),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Health Auto Export 앱이 보내는 운동 데이터를 수신한다.
 
-    Strava가 구독 등록 시 한 번 호출한다:
-      GET /webhook/strava?hub.mode=subscribe&hub.challenge=XXX&hub.verify_token=YYY
+    Health Auto Export는 Strava와 달리 응답 시간 제약이 없으므로 동기적으로 처리한다.
+    같은 운동이 재전송될 수 있어 apple_health_id 기준으로 멱등하게 upsert한다.
     """
-    params = request.query_params
-    if params.get("hub.verify_token") != settings.STRAVA_WEBHOOK_VERIFY_TOKEN:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid verify_token")
+    if not x_webhook_secret:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing X-Webhook-Secret")
 
-    return JSONResponse({"hub.challenge": params.get("hub.challenge", "")})
-
-
-@router.post("/strava", status_code=status.HTTP_200_OK)
-async def strava_event(request: Request, background_tasks: BackgroundTasks) -> dict:
-    """Strava 활동 이벤트를 수신한다.
-
-    Strava는 3초 내 응답을 요구하므로 즉시 200을 반환하고,
-    실제 처리는 BackgroundTask에서 수행한다.
-
-    처리 대상 이벤트:
-      - object_type == "activity"
-      - aspect_type == "create"
-    """
     try:
         body = await request.json()
     except Exception:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON")
 
-    if body.get("object_type") == "activity" and body.get("aspect_type") == "create":
-        activity_id = body.get("object_id")
-        athlete_id = body.get("owner_id")
-        if activity_id and athlete_id:
-            background_tasks.add_task(_process_activity, int(activity_id), int(athlete_id))
+    data_source = await apple_health.get_data_source_by_webhook_secret(x_webhook_secret, db)
+    if data_source is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook secret")
 
-    return {"status": "ok"}
-
-
-async def _process_activity(strava_activity_id: int, strava_athlete_id: int) -> None:
-    """BackgroundTask: 새 DB 세션을 열어 활동을 동기화한다."""
-    async with AsyncSessionLocal() as db:
-        try:
-            activity = await sync_activity_from_webhook(
-                strava_activity_id, strava_athlete_id, db
-            )
-            if activity:
-                logger.info(
-                    "Synced activity strava_id=%s user_id=%s",
-                    strava_activity_id,
-                    activity.user_id,
-                )
-        except Exception:
-            logger.exception(
-                "Unexpected error syncing activity strava_id=%s", strava_activity_id
-            )
+    result = await apple_health.sync_workouts(body, data_source.user_id, db)
+    logger.info(
+        "Apple Health sync: user_id=%s saved=%s skipped=%s",
+        data_source.user_id,
+        result["saved"],
+        result["skipped"],
+    )
+    return result

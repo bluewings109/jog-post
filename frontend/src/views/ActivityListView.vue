@@ -2,26 +2,7 @@
   <v-container max-width="860">
     <div class="d-flex align-center justify-space-between mb-4">
       <h1 class="text-h5 font-weight-bold">활동 목록</h1>
-      <v-btn
-        color="primary"
-        variant="tonal"
-        :loading="syncing"
-        prepend-icon="mdi-sync"
-        @click="syncActivities"
-      >
-        Strava 동기화
-      </v-btn>
     </div>
-
-    <v-alert
-      v-if="syncMessage"
-      :type="syncSuccess ? 'success' : 'error'"
-      class="mb-4"
-      closable
-      @click:close="syncMessage = ''"
-    >
-      {{ syncMessage }}
-    </v-alert>
 
     <!-- 기간 선택 -->
     <v-row align="center" justify="center" class="mb-4" no-gutters>
@@ -57,7 +38,7 @@
       <div v-if="store.activities.length === 0" class="text-center py-12 text-medium-emphasis">
         <v-icon size="64" class="mb-3">mdi-run</v-icon>
         <div class="text-h6">{{ store.periodLabel }}에 활동이 없어요</div>
-        <div class="text-body-2 mt-1">다른 기간을 선택하거나 Strava 동기화를 눌러보세요.</div>
+        <div class="text-body-2 mt-1">다른 기간을 선택하거나, 프로필에서 Apple Health 연동을 확인해보세요.</div>
       </div>
 
       <div v-else class="activity-grid">
@@ -75,44 +56,16 @@
 import { computed, onMounted, ref } from 'vue'
 import { useActivitiesStore } from '@/stores/activities'
 import ActivityCard from '@/components/ActivityCard.vue'
-import apiClient from '@/api/client'
 
 const store = useActivitiesStore()
 const page = ref(1)
 const perPage = 20
-const syncing = ref(false)
-const syncMessage = ref('')
-const syncSuccess = ref(true)
 
 const totalPages = computed(() => Math.ceil(store.total / perPage))
 
 async function loadPage(p: number) {
   page.value = p
   await store.loadActivities(p, perPage)
-}
-
-async function syncActivities() {
-  syncing.value = true
-  syncMessage.value = ''
-  try {
-    const { data } = await apiClient.post<{ synced: number }>('/activities/sync')
-    syncSuccess.value = true
-    syncMessage.value = `${data.synced}개 활동을 동기화했습니다.`
-    await store.loadActivities(1, perPage)
-    page.value = 1
-  } catch (err: unknown) {
-    syncSuccess.value = false
-    const status = (err as { response?: { status?: number } })?.response?.status
-    if (status === 400) {
-      syncMessage.value = 'Strava 연동을 먼저 완료해주세요.'
-    } else if (status === 429) {
-      syncMessage.value = 'Strava API 요청 한도를 초과했습니다. 15분 후 다시 시도해주세요.'
-    } else {
-      syncMessage.value = '동기화 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
-    }
-  } finally {
-    syncing.value = false
-  }
 }
 
 onMounted(() => store.loadActivities(1, perPage))

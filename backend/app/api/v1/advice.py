@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.models.activity import Activity
-from app.models.lap import Lap
 from app.models.llm_advice import LLMAdvice
 from app.models.user import User
 from app.schemas.advice import AdviceHistoryResponse, AdviceHistoryItem
@@ -49,7 +48,7 @@ def _format_time(seconds: int | None) -> str:
     return f"{m}:{s:02d}"
 
 
-def _build_activity_context(activity: Activity, laps: list[Lap]) -> str:
+def _build_activity_context(activity: Activity) -> str:
     lines = [
         f"날짜: {activity.start_date_local.strftime('%Y-%m-%d %H:%M')}",
         f"이름: {activity.name or '달리기'}",
@@ -70,29 +69,16 @@ def _build_activity_context(activity: Activity, laps: list[Lap]) -> str:
     if activity.suffer_score:
         lines.append(f"고통 점수: {activity.suffer_score}")
 
-    splits = (activity.raw_json or {}).get("splits_metric", [])
+    splits = (activity.raw_json or {}).get("computed_splits", [])
     if splits:
         lines.append(f"\nkm 구간 데이터 ({len(splits)}개):")
-        lines.append("| 구간 | 거리 | 페이스 | 심박 | 고도차 |")
-        lines.append("|------|------|--------|------|--------|")
+        lines.append("| 구간 | 거리 | 페이스 |")
+        lines.append("|------|------|--------|")
         for s in splits:
             km = s.get("split", "-")
             dist = f"{(s.get('distance') or 0) / 1000:.2f} km"
             pace = _format_pace(s.get("average_speed"))
-            hr = f"{s['average_heartrate']:.0f}" if s.get("average_heartrate") else "-"
-            elev = s.get("elevation_difference")
-            elev_str = f"{elev:+.0f} m" if elev is not None else "-"
-            lines.append(f"| {km}km | {dist} | {pace} | {hr} | {elev_str} |")
-
-    if laps:
-        lines.append(f"\n사용자 랩 데이터 ({min(len(laps), 20)}개):")
-        lines.append("| 랩 | 거리 | 페이스 | 심박 |")
-        lines.append("|----|------|--------|------|")
-        for lap in laps[:20]:
-            dist = f"{(lap.distance or 0) / 1000:.2f} km"
-            pace = _format_pace(lap.average_speed)
-            hr = f"{lap.average_heartrate:.0f}" if lap.average_heartrate else "-"
-            lines.append(f"| {lap.lap_index} | {dist} | {pace} | {hr} |")
+            lines.append(f"| {km}km | {dist} | {pace} |")
 
     return "\n".join(lines)
 
@@ -172,12 +158,8 @@ async def advice_for_activity(
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
     """특정 활동에 대한 AI 조언을 SSE로 스트리밍한다."""
-    from sqlalchemy.orm import selectinload
-
     result = await db.execute(
-        select(Activity)
-        .where(Activity.id == activity_id, Activity.user_id == current_user.id)
-        .options(selectinload(Activity.laps))
+        select(Activity).where(Activity.id == activity_id, Activity.user_id == current_user.id)
     )
     activity = result.scalar_one_or_none()
     if activity is None:
@@ -188,7 +170,7 @@ async def advice_for_activity(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
 
-    context = _build_activity_context(activity, activity.laps)
+    context = _build_activity_context(activity)
     user_prompt = f"다음 달리기 활동을 분석하고 개선을 위한 구체적인 조언을 해주세요:\n\n{context}"
 
     return StreamingResponse(

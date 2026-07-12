@@ -1,6 +1,11 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import apiClient from '@/api/client'
+import {
+  connectAppleHealth as connectAppleHealthApi,
+  disconnectAppleHealth as disconnectAppleHealthApi,
+  type AppleHealthConnectResponse,
+} from '@/api/appleHealth'
 
 interface DataSource {
   provider: string
@@ -40,5 +45,24 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
   }
 
-  return { user, isLoggedIn, fetchMe, updatePublicSetting, logout }
+  async function connectAppleHealth(): Promise<AppleHealthConnectResponse> {
+    const { data } = await connectAppleHealthApi()
+    await fetchMe()
+    return data
+  }
+
+  async function disconnectAppleHealth() {
+    await disconnectAppleHealthApi()
+    await fetchMe()
+  }
+
+  return {
+    user,
+    isLoggedIn,
+    fetchMe,
+    updatePublicSetting,
+    logout,
+    connectAppleHealth,
+    disconnectAppleHealth,
+  }
 })

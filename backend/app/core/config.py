@@ -16,11 +16,6 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
 
-    # Strava OAuth (데이터 연동)
-    STRAVA_CLIENT_ID: str = ""
-    STRAVA_CLIENT_SECRET: str = ""
-    STRAVA_WEBHOOK_VERIFY_TOKEN: str = "jog-post-webhook"
-
     # LLM (공급자 미결정 — 나중에 설정)
     LLM_PROVIDER: str = ""  # openai | anthropic | ollama
     LLM_API_KEY: str = ""

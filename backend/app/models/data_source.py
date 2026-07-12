@@ -1,13 +1,13 @@
 from datetime import datetime
 from typing import Literal
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, Text, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, Index, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
-# 지원 공급자 타입 — 향후 "apple", "samsung" 등 추가
-ProviderType = Literal["strava"]
+# 지원 공급자 타입 — 향후 다른 웹훅 기반 소스 추가 가능
+ProviderType = Literal["apple_health"]
 
 
 class DataSource(Base):
@@ -23,12 +23,9 @@ class DataSource(Base):
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    provider: Mapped[str] = mapped_column(String(50), nullable=False)   # "strava" | ...
-    external_id: Mapped[str] = mapped_column(String(100), nullable=False)  # 공급자 측 사용자 ID
-    access_token: Mapped[str] = mapped_column(Text, nullable=False)
-    refresh_token: Mapped[str] = mapped_column(Text, nullable=False)
-    token_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    scopes: Mapped[str | None] = mapped_column(Text)                    # 승인된 scope 문자열
+    provider: Mapped[str] = mapped_column(String(50), nullable=False)   # "apple_health" | ...
+    external_id: Mapped[str] = mapped_column(String(100), nullable=False)  # 공급자 측 식별자
+    webhook_secret: Mapped[str | None] = mapped_column(String(100), unique=True)  # 웹훅 인증용 시크릿
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
