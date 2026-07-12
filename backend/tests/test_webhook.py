@@ -32,7 +32,7 @@ _RUN_WORKOUT = {
     "duration": 3600,
     "activeEnergyBurned": {"qty": 500, "units": "kcal"},
     "distance": {"qty": 10.0, "units": "km"},
-    "heartRate": {"min": 100, "avg": 150, "max": 175},
+    "heartRate": {"min": {"qty": 100, "units": "count/min"}, "avg": {"qty": 150, "units": "count/min"}, "max": {"qty": 175, "units": "count/min"}},
     "route": [],
 }
 

@@ -35,6 +35,19 @@ def test_parse_calories_kcal_passthrough():
     assert apple_health._parse_calories({"qty": 500.0, "units": "kcal"}) == 500.0
 
 
+def test_parse_qty_nested_dict():
+    """실제 payload에서 heartRate.avg/max가 {"qty": n, "units": "..."} 형태로 옴 (실측 확인)."""
+    assert apple_health._parse_qty({"qty": 150.5, "units": "count/min"}) == 150.5
+
+
+def test_parse_qty_plain_number():
+    assert apple_health._parse_qty(150) == 150.0
+
+
+def test_parse_qty_none():
+    assert apple_health._parse_qty(None) is None
+
+
 # ─────────────────────────────────────────────
 # 경로 인코딩 / 고도
 # ─────────────────────────────────────────────
@@ -165,7 +178,7 @@ _RUN_WORKOUT = {
     "duration": 3600,
     "activeEnergyBurned": {"qty": 500, "units": "kcal"},
     "distance": {"qty": 10.0, "units": "km"},
-    "heartRate": {"min": 100, "avg": 150, "max": 175},
+    "heartRate": {"min": {"qty": 100, "units": "count/min"}, "avg": {"qty": 150, "units": "count/min"}, "max": {"qty": 175, "units": "count/min"}},
     "route": [],
 }
 

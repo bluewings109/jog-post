@@ -141,8 +141,8 @@ async def _upsert_activity(raw: dict, user_id: int, db: AsyncSession) -> Activit
         elapsed_time=moving_time,
         total_elevation_gain=_compute_elevation_gain(route),
         average_speed=average_speed,
-        average_heartrate=heart_rate.get("avg"),
-        max_heartrate=heart_rate.get("max"),
+        average_heartrate=_parse_qty(heart_rate.get("avg")),
+        max_heartrate=_parse_qty(heart_rate.get("max")),
         calories=_parse_calories(raw.get("activeEnergyBurned")),
         summary_polyline=_encode_route(route),
         raw_json={**raw, "computed_splits": _compute_splits(route)},
@@ -190,6 +190,20 @@ def _parse_calories(energy: dict | None) -> float | None:
     if energy.get("units") == "kJ":
         return qty / _KJ_PER_KCAL
     return qty
+
+
+def _parse_qty(value: dict | float | int | None) -> float | None:
+    """`{"qty": n, "units": "..."}` 형태와 평범한 숫자를 모두 방어적으로 처리한다.
+
+    Health Auto Export는 같은 종류의 필드(예: heartRate.avg/max)도 상황에 따라
+    중첩 객체 또는 단순 숫자로 보낼 수 있어(실측 확인) 두 형태 모두 수용한다.
+    """
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        qty = value.get("qty")
+        return float(qty) if qty is not None else None
+    return float(value)
 
 
 def _encode_route(route: list[dict]) -> str | None:
