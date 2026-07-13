@@ -1,0 +1,45 @@
+name: JOG-POST
+version: "1.0.0"
+slug: jogpost
+description: Apple Health 러닝 기록 자동 수집 및 AI 코칭 서비스
+url: https://github.com/bluewings109/jog-post
+arch:
+  - aarch64
+  - amd64
+init: false
+startup: application
+boot: auto
+ports:
+  8000/tcp: 8000
+ports_description:
+  8000/tcp: "Web UI / Apple Health Webhook"
+map:
+  - addon_config:rw
+options:
+  google_client_id: ""
+  google_client_secret: ""
+  jwt_secret_key: ""
+  frontend_url: ""
+  db_host: ""
+  db_port: 5432
+  db_name: "jogpost"
+  db_user: "jogpost"
+  db_password: ""
+  llm_provider: ""
+  llm_api_key: ""
+  llm_model: ""
+  advice_enabled: false
+schema:
+  google_client_id: str
+  google_client_secret: password
+  jwt_secret_key: password
+  frontend_url: str
+  db_host: str
+  db_port: port
+  db_name: str
+  db_user: str
+  db_password: password
+  llm_provider: list(openai|anthropic|gemini|groq)?
+  llm_api_key: password?
+  llm_model: str?
+  advice_enabled: bool

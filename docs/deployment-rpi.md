@@ -106,6 +106,51 @@ docker compose -f docker-compose.prod.yml logs -f app
 4. 같은 기간을 다시 export해도 중복 저장되지 않는지(멱등성) 확인
 5. 실제 러닝 완료 후(폰 잠금 해제 상태에서) webhook이 도달하는지 `docker compose -f docker-compose.prod.yml logs -f app`에서 확인
 
+## Home Assistant Add-on으로 배포 (대안)
+
+`docker compose` 대신 HAOS의 Supervisor 애드온 스토어를 통해 배포할 수도 있습니다. 이 방식은 앱 컨테이너만 add-on으로 관리하고, PostgreSQL은 별도의 공식 Postgres add-on(예: `a0d7b954/postgresql`)에 의존합니다 — HA add-on은 원칙적으로 단일 컨테이너이므로 `docker-compose.prod.yml`의 `db` 서비스를 그대로 옮길 수 없습니다.
+
+### 사전 조건
+
+- Supervisor 애드온 스토어에서 공식 **PostgreSQL** add-on 설치 및 기동, 그 안에 `jogpost` 데이터베이스/사용자 생성
+- Postgres add-on의 접속 호스트명(보통 add-on 슬러그 기반, 예: `core-postgresql` — 실제 값은 설치한 add-on의 정보 화면에서 확인) 확인
+
+### 1. GHCR 이미지 준비
+
+`.github/workflows/docker-publish.yml`이 `main` 브랜치 push마다 `ghcr.io/bluewings109/jog-post`(`linux/amd64` + `linux/arm64`)로 이미지를 빌드/publish합니다. `jogpost/Dockerfile`은 이 이미지를 `FROM`으로 가져와 HA add-on 옵션(`/data/options.json`)을 환경변수로 변환하는 `run.sh` 래퍼만 얹습니다. 이 add-on 이미지 자체는 Supervisor가 설치 시점에 로컬(라즈베리파이) 빌드하므로 별도 push는 필요 없습니다.
+
+### 2. 저장소를 add-on repository로 등록
+
+1. HA → **설정 → 애드온 → 애드온 스토어** → 우측 상단 메뉴 → **저장소**
+2. `https://github.com/bluewings109/jog-post` 입력 후 추가 (repo 루트의 `repository.yaml`을 인식)
+3. 목록에 "JOG-POST" add-on이 나타나면 설치
+
+### 3. 옵션 설정
+
+설치 후 **설정** 탭에서 다음 값을 입력합니다.
+
+| 옵션 | 값 |
+|------|-----|
+| `google_client_id` / `google_client_secret` | Google Cloud Console 발급값 |
+| `jwt_secret_key` | 운영용 랜덤 값 |
+| `frontend_url` | `https://jog.onlypearson.com` |
+| `db_host` / `db_port` / `db_name` / `db_user` / `db_password` | Postgres add-on 접속 정보 |
+| `llm_provider` / `llm_api_key` / `llm_model` | 사용할 LLM 공급자 (비워두면 AI 조언 기능 비활성) |
+| `advice_enabled` | AI 조언 기능 on/off |
+
+### 4. 기동 및 확인
+
+**정보** 탭에서 시작 → **로그** 탭에서 `uv run alembic upgrade head` 완료와 `Uvicorn running on http://0.0.0.0:8000` 로그를 확인합니다. 이후 Cloudflare Tunnel 설정(위 섹션과 동일하게 라즈베리파이 LAN IP:8000)과 Google OAuth 리디렉션 URI 설정은 `docker compose` 배포 때와 동일합니다.
+
+### `docker compose` 방식과의 차이
+
+| 항목 | `docker compose` | HA Add-on |
+|------|-------------------|-----------|
+| DB 관리 | `db` 서비스로 같이 관리 | 별도 Postgres add-on 필요 |
+| 설정 방법 | `.env` 파일 | Supervisor 애드온 설정 UI |
+| 업데이트 | `git pull` + `docker compose up -d --build` | Supervisor 스토어에서 업데이트 알림 → 클릭 한 번 |
+| 이미지 빌드 위치 | 라즈베리파이에서 직접 | GHCR(멀티스테이지 앱 이미지)는 CI, add-on 래퍼는 로컬 |
+
 ## 트러블슈팅
 
 | 증상 | 확인 순서 |
