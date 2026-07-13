@@ -1,5 +1,5 @@
 name: JOG-POST
-version: "1.0.0"
+version: "1.0.1"
 slug: jogpost
 description: Apple Health 러닝 기록 자동 수집 및 AI 코칭 서비스
 url: https://github.com/bluewings109/jog-post
