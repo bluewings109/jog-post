@@ -219,6 +219,8 @@ class LLMClient(Protocol):
 
 자세한 절차는 [`docs/deployment-rpi.md`](docs/deployment-rpi.md#home-assistant-add-on으로-배포-대안) 참고.
 
+**⚠️ `jogpost/config.yaml`의 `version` 필드는 반드시 매번 올릴 것.** HA Supervisor는 이 값이 바뀌어야만 "업데이트 있음"으로 인식해 재빌드한다. `jogpost/Dockerfile`이 `ghcr.io/bluewings109/jog-post:latest`를 `FROM`으로 고정 태그 없이 참조하므로, `jogpost/` 디렉토리 자체를 안 건드리고 `backend/`나 `frontend/`만 수정해도(즉 앱 이미지만 바뀌어도) **`version`을 올리지 않으면 Supervisor가 새 이미지를 절대 다시 pull/빌드하지 않는다.** 백엔드/프론트엔드/애드온 파일 중 무엇을 바꾸든, main에 push하기 전에 `jogpost/config.yaml`의 `version`을 patch 올리는 걸 잊지 말 것.
+
 ### 로컬 vs 프로덕션 API 경로
 
 - **로컬 개발**: 프론트엔드(`localhost:5173`)가 백엔드(`localhost:8000`)로 프록시 없이 직접 요청 — `VITE_API_URL` 불필요
