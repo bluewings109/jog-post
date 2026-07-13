@@ -142,7 +142,25 @@ docker compose -f docker-compose.prod.yml logs -f app
 
 ### 4. 기동 및 확인
 
-**정보** 탭에서 시작 → **로그** 탭에서 `uv run alembic upgrade head` 완료와 `Uvicorn running on http://0.0.0.0:8000` 로그를 확인합니다. 이후 Cloudflare Tunnel 설정(위 섹션과 동일하게 라즈베리파이 LAN IP:8000)과 Google OAuth 리디렉션 URI 설정은 `docker compose` 배포 때와 동일합니다.
+**정보** 탭에서 시작 → **로그** 탭에서 `uv run alembic upgrade head` 완료와 `Uvicorn running on http://0.0.0.0:8000` 로그를 확인합니다. Google OAuth 리디렉션 URI 설정은 `docker compose` 배포 때와 동일합니다.
+
+### Cloudflare Tunnel 연결 (add-on 전용 hostname 사용)
+
+`docker compose` 배포 때는 라즈베리파이 LAN IP를 썼지만(DHCP로 IP가 바뀌면 깨지는 문제가 있음), add-on 배포에서는 **Supervisor 내부 도커 네트워크(`hassio`)의 alias**를 대신 쓸 수 있어 더 안정적입니다. Cloudflare Tunnel(공식 "Cloudflare Tunnel" add-on)도 같은 `hassio` 네트워크에 있으므로 컨테이너 이름/hostname으로 바로 접근 가능합니다.
+
+1. jog-post add-on의 실제 컨테이너 alias 확인:
+   ```bash
+   docker ps --format '{{.Names}}' | grep -i jogpost
+   # 예: addon_bf3a2436_jogpost
+   docker inspect <위 이름> --format '{{json .NetworkSettings.Networks.hassio.Aliases}}'
+   # 예: ["bf3a2436-jogpost"]
+   ```
+2. Cloudflare Zero Trust 대시보드 → Networks → Tunnels → 해당 터널 → Public Hostname → `jog.onlypearson.com` 편집 → URL을 `http://<alias>:8000`(예: `http://bf3a2436-jogpost:8000`)으로 설정
+3. 검증: `curl http://<alias>:8000/health` (내부), `curl -I https://jog.onlypearson.com/health` (외부)
+
+**hostname 앞자리(`bf3a2436` 등)에 대한 주의사항**: 이 값은 add-on repository를 등록한 URL(`https://github.com/bluewings109/jog-post`)로부터 결정적(deterministic)으로 계산되는 해시이므로, add-on 재시작·업데이트·HA 재부팅으로는 바뀌지 않습니다. 다만 **저장소를 스토어에서 삭제 후 재등록**하거나(등록 시 입력한 URL 문자열이 조금이라도 다르면, 예: 끝에 `/` 유무), **GitHub repo 자체를 이전/개명**하면 새 해시가 나올 수 있습니다 — 그런 작업을 했다면 위 1번부터 다시 확인하고 Cloudflare Tunnel URL을 갱신해야 합니다.
+
+- 공식(`core_*`) add-on과 달리, 커뮤니티/커스텀 저장소 add-on은 slug 단독(`jogpost`)으로는 resolve되지 않고 `<repo해시>-<slug>` 형태의 alias로만 통신 가능합니다.
 
 ### `docker compose` 방식과의 차이
 
