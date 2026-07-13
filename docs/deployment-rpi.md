@@ -108,12 +108,14 @@ docker compose -f docker-compose.prod.yml logs -f app
 
 ## Home Assistant Add-on으로 배포 (대안)
 
-`docker compose` 대신 HAOS의 Supervisor 애드온 스토어를 통해 배포할 수도 있습니다. 이 방식은 앱 컨테이너만 add-on으로 관리하고, PostgreSQL은 별도의 공식 Postgres add-on(예: `a0d7b954/postgresql`)에 의존합니다 — HA add-on은 원칙적으로 단일 컨테이너이므로 `docker-compose.prod.yml`의 `db` 서비스를 그대로 옮길 수 없습니다.
+`docker compose` 대신 HAOS의 Supervisor 애드온 스토어를 통해 배포할 수도 있습니다. 이 방식은 앱 컨테이너만 add-on으로 관리하고, PostgreSQL은 별도의 add-on에 의존합니다 — HA add-on은 원칙적으로 단일 컨테이너이므로 `docker-compose.prod.yml`의 `db` 서비스를 그대로 옮길 수 없습니다.
+
+> **참고**: Home Assistant 공식(`hassio-addons/repository`) 저장소에는 PostgreSQL add-on이 없습니다. 커뮤니티에서 사실상 표준으로 쓰이는 것은 Expaso가 관리하는 **"PostgreSQL + TimescaleDB"** add-on(`github.com/expaso/hassos-addon-timescaledb`)입니다.
 
 ### 사전 조건
 
-- Supervisor 애드온 스토어에서 공식 **PostgreSQL** add-on 설치 및 기동, 그 안에 `jogpost` 데이터베이스/사용자 생성
-- Postgres add-on의 접속 호스트명(보통 add-on 슬러그 기반, 예: `core-postgresql` — 실제 값은 설치한 add-on의 정보 화면에서 확인) 확인
+- Supervisor → 애드온 스토어 → 저장소에 `https://github.com/expaso/hassos-addons` 추가 → **PostgreSQL + TimescaleDB** add-on 설치 및 기동, 그 안에 `jogpost` 데이터베이스/사용자 생성
+- Postgres add-on의 접속 호스트명(설치한 add-on의 정보/네트워크 탭에서 실제 값 확인 — add-on 슬러그 기반으로 정해짐, 재설치 시 바뀔 수 있음)
 
 ### 1. GHCR 이미지 준비
 

@@ -215,7 +215,7 @@ class LLMClient(Protocol):
 
 - `.github/workflows/docker-publish.yml`이 `main` push 시 앱 이미지를 `ghcr.io/bluewings109/jog-post`(amd64/arm64)로 publish
 - `jogpost/Dockerfile`은 그 이미지를 `FROM`으로 가져와 HA add-on 옵션(`/data/options.json`)을 환경변수로 변환하는 `run.sh` 래퍼만 얹음 (Supervisor가 설치 시점에 라즈베리파이에서 이 얇은 레이어만 로컬 빌드)
-- HA add-on은 단일 컨테이너 원칙이라 PostgreSQL은 별도의 공식 Postgres add-on(`a0d7b954/postgresql` 등)에 의존 — `docker-compose.prod.yml`의 `db` 서비스처럼 같이 묶을 수 없음
+- HA add-on은 단일 컨테이너 원칙이라 PostgreSQL은 별도 add-on에 의존 — 공식 저장소(`hassio-addons/repository`)엔 Postgres add-on이 없어 커뮤니티 표준인 Expaso의 "PostgreSQL + TimescaleDB"(`github.com/expaso/hassos-addons`)를 등록해서 사용. `docker-compose.prod.yml`의 `db` 서비스처럼 같이 묶을 수 없음
 
 자세한 절차는 [`docs/deployment-rpi.md`](docs/deployment-rpi.md#home-assistant-add-on으로-배포-대안) 참고.
 
