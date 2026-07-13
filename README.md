@@ -169,52 +169,32 @@ ngrok http 8000
 |--------|------|------|
 | POST | `/api/v1/webhook/apple-health` | Health Auto Export 앱의 운동 데이터 수신 |
 
-## 라즈베리파이 자가호스팅 배포
+## 라즈베리파이 자가호스팅 배포 (Home Assistant Add-on)
 
-FastAPI가 Vue 빌드 결과물을 직접 서빙하는 단일 서비스 구조를, 라즈베리파이5(Home Assistant OS) + Cloudflare Tunnel + `docker compose`로 자가호스팅합니다.
+FastAPI가 Vue 빌드 결과물을 직접 서빙하는 단일 서비스를, 라즈베리파이5(Home Assistant OS)의 **Supervisor 애드온**으로 자가호스팅합니다. PostgreSQL은 별도의 Postgres add-on에 의존하고, Cloudflare Tunnel add-on으로 외부에 노출합니다.
 
 ```
 라즈베리파이5 (HAOS)
-├── docker compose (docker-compose.prod.yml)
-│   ├── app 컨테이너 (FastAPI + Vue 정적 파일, 127.0.0.1:8000)
-│   └── db 컨테이너 (PostgreSQL, 내부 네트워크 전용)
-└── Cloudflare Tunnel (cloudflared, HA와 동일 터널)
-    └── jog.onlypearson.com → localhost:8000
+├── HAOS Supervisor
+│   ├── jog-post add-on (FastAPI + Vue 정적 파일, 8000)
+│   └── PostgreSQL + TimescaleDB add-on (Expaso, 별도 설치)
+└── Cloudflare Tunnel add-on (cloudflared)
+    └── jog.onlypearson.com → jog-post 컨테이너의 hassio 네트워크 alias:8000
 ```
 
 ### 배포 절차
 
-1. **라즈베리파이에서 저장소 클론** (SSH 애드온으로 접근)
-   ```bash
-   git clone <repo-url>
-   cd jog-post
-   ```
+1. **PostgreSQL add-on 설치**: Supervisor → 애드온 스토어 → 저장소에 `https://github.com/expaso/hassos-addons` 추가 → **PostgreSQL + TimescaleDB** 설치 → `jogpost` DB/사용자 생성
 
-2. **환경변수 배치**: 로컬에서 채운 `.env`를 `scp`로 전달 후 권한 제한
-   ```bash
-   scp .env <user>@<rpi-host>:/path/to/jog-post/.env
-   ssh <user>@<rpi-host> chmod 600 /path/to/jog-post/.env
-   ```
-   프로덕션에서는 `FRONTEND_URL=https://jog.onlypearson.com`, `POSTGRES_PASSWORD`는 강한 값으로 설정합니다.
+2. **jog-post add-on 설치**: 저장소에 `https://github.com/bluewings109/jog-post` 추가 → "JOG-POST" 설치 → 설정 탭에서 Google OAuth, JWT secret, `frontend_url`, Postgres 접속정보, LLM 설정 입력 후 시작
 
-3. **빌드 및 기동**
-   ```bash
-   docker compose -f docker-compose.prod.yml up -d --build
-   docker compose -f docker-compose.prod.yml logs -f app   # 마이그레이션/기동 확인
-   ```
+3. **Cloudflare Tunnel에 서브도메인 추가**: Zero Trust 대시보드 → Networks → Tunnels → 기존 HA 터널 → Public Hostname 추가 (`jog.onlypearson.com` → jog-post 컨테이너의 `hassio` 네트워크 alias, 예: `http://bf3a2436-jogpost:8000`)
 
-4. **Cloudflare Tunnel에 서브도메인 추가**: Zero Trust 대시보드 → Networks → Tunnels → 기존 HA 터널 → Public Hostname 추가 (`jog.onlypearson.com` → `localhost:8000` 또는 라즈베리파이 LAN IP)
-
-5. **Google OAuth 리디렉션 URI 업데이트**:
+4. **Google OAuth 리디렉션 URI 업데이트**:
    - Google Cloud Console: `https://jog.onlypearson.com/api/v1/auth/google/callback`
 
-6. **Apple Health 연동**: 프로필 페이지에서 연동 → 발급받은 시크릿/URL(`https://jog.onlypearson.com/api/v1/webhook/apple-health`)을 Health Auto Export 앱의 커스텀 헤더에 설정
+5. **Apple Health 연동**: 프로필 페이지에서 연동 → 발급받은 시크릿/URL(`https://jog.onlypearson.com/api/v1/webhook/apple-health`)을 Health Auto Export 앱의 커스텀 헤더에 설정
 
-7. **재배포 시**:
-   ```bash
-   git pull
-   docker compose -f docker-compose.prod.yml build
-   docker compose -f docker-compose.prod.yml up -d
-   ```
+6. **재배포 시**: `jogpost/config.yaml`의 `version`을 올리고 main에 push → GHCR 이미지 빌드 완료 후 Supervisor 애드온 스토어에서 업데이트
 
 자세한 절차와 트러블슈팅은 [`docs/deployment-rpi.md`](docs/deployment-rpi.md) 참고.

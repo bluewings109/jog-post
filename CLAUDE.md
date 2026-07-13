@@ -175,49 +175,43 @@ class LLMClient(Protocol):
 - 시스템 프롬프트에 "반드시 한국어로만 답변" 명시 — Llama 계열 모델의 언어 혼용(일본어 등) 억제
 - Groq/Llama 사용 시 언어 혼용이 발생하면 `temperature`를 `0.2~0.3`으로 낮춰볼 것
 
-## 배포 구조 (라즈베리파이5 자가호스팅)
+## 배포 구조 (라즈베리파이5 HAOS Add-on)
 
-단일 서비스로 FastAPI가 Vue 빌드 결과물을 직접 서빙합니다. 라즈베리파이5(Home Assistant OS) 위에서 `docker compose`로 앱+DB 컨테이너를 기동하고, 기존 HA용 Cloudflare Tunnel에 서브도메인(`jog.onlypearson.com`)을 추가해 외부에 노출합니다.
+단일 서비스로 FastAPI가 Vue 빌드 결과물을 직접 서빙합니다. 라즈베리파이5(Home Assistant OS) 위에서 **HAOS Supervisor 애드온**으로 앱을 기동하고, 기존 HA용 Cloudflare Tunnel(공식 "Cloudflare Tunnel" add-on)에 서브도메인(`jog.onlypearson.com`)을 추가해 외부에 노출합니다. PostgreSQL은 HA add-on이 단일 컨테이너 원칙이라 별도의 Postgres add-on(Expaso의 "PostgreSQL + TimescaleDB")에 의존합니다.
 
 ```
 라즈베리파이5 (HAOS)
-├── docker compose (docker-compose.prod.yml)
-│   ├── app 컨테이너 (FastAPI + Vue 정적 파일, 127.0.0.1:8000)
+├── HAOS Supervisor
+│   ├── jog-post add-on (repository.yaml + jogpost/, FastAPI + Vue 정적 파일, 8000)
 │   │   ├── /api/v1/*  → FastAPI 라우터
 │   │   └── /*         → Vue SPA (index.html 폴백)
-│   └── db 컨테이너 (PostgreSQL, 내부 네트워크 전용)
-└── Cloudflare Tunnel (cloudflared) → jog.onlypearson.com
+│   └── PostgreSQL + TimescaleDB add-on (Expaso, 별도 설치)
+└── Cloudflare Tunnel add-on (cloudflared) → jog.onlypearson.com
 ```
 
 ### 핵심 파일
 
 | 파일 | 역할 |
 |------|------|
-| `Dockerfile` | 멀티스테이지 빌드(프론트 빌드 → 백엔드 설치) + CMD로 마이그레이션·uvicorn 기동 |
-| `docker-compose.prod.yml` | app + db 서비스, healthcheck, `restart: unless-stopped` |
-| `.env` (git 미추적) | 라즈베리파이에 `scp`로 배치하는 실제 운영 환경변수 |
+| `Dockerfile` | 앱 자체의 멀티스테이지 빌드(프론트 빌드 → 백엔드 설치). GHCR용 이미지를 만드는 데 쓰임 |
+| `.github/workflows/docker-publish.yml` | `main` push 시 위 Dockerfile로 이미지를 빌드해 `ghcr.io/bluewings109/jog-post`(amd64/arm64)로 publish |
+| `repository.yaml` | repo 루트, HA add-on repository 메타데이터 |
+| `jogpost/config.yaml` | add-on 옵션 스키마 (Google OAuth, JWT, Postgres 접속정보, LLM, `advice_enabled`) |
+| `jogpost/Dockerfile` | GHCR 이미지를 `FROM`으로 가져와 `run.sh` 래퍼만 얹는 얇은 레이어. Supervisor가 설치/업데이트 시점에 라즈베리파이에서 로컬 빌드 |
+| `jogpost/run.sh` | HA add-on 옵션(`/data/options.json`)을 환경변수로 변환, Postgres 연결 대기 후 alembic 마이그레이션 + uvicorn 기동 |
 | `backend/app/main.py` | `frontend/dist` 존재 시 정적 파일 서빙 + SPA 폴백 라우트 |
 
 ### 배포 절차
 
-1. 라즈베리파이에서 `git clone` (최초 1회) 또는 `git pull` (재배포)
-2. `.env`를 `scp`로 배치 (`FRONTEND_URL=https://jog.onlypearson.com`, `POSTGRES_PASSWORD` 운영값 설정)
-3. `docker compose -f docker-compose.prod.yml up -d --build`
-4. Cloudflare Zero Trust 대시보드에서 기존 HA 터널에 Public Hostname 추가 (`jog.onlypearson.com` → 라즈베리파이 LAN IP:8000, `localhost`/`homeassistant.local`은 이 환경에서 동작하지 않음 — [`docs/deployment-rpi.md`](docs/deployment-rpi.md) 참고)
-5. Google Cloud Console에서 리디렉션 URI를 `jog.onlypearson.com` 기준으로 업데이트
-6. 프로필 페이지에서 Apple Health 연동 → 발급받은 시크릿/URL을 Health Auto Export 앱의 커스텀 헤더에 설정
+1. `backend/`, `frontend/`, `jogpost/` 중 무엇을 바꿨든 `jogpost/config.yaml`의 `version`을 올리고 main에 push (아래 경고 참고)
+2. GitHub Actions에서 GHCR 이미지 빌드 완료 확인
+3. HAOS Supervisor → 애드온 스토어 → 저장소에 PostgreSQL add-on(`https://github.com/expaso/hassos-addons`)과 jog-post add-on(`https://github.com/bluewings109/jog-post`) 등록/설치
+4. jog-post add-on 옵션에 Google OAuth, JWT secret, `frontend_url`, Postgres 접속정보, LLM 설정 입력 후 시작
+5. Cloudflare Tunnel Public Hostname을 jog-post 컨테이너의 `hassio` 네트워크 alias(`<repo해시>-<slug>`)로 연결 (라즈베리파이 LAN IP보다 안정적 — DHCP로 안 바뀜)
+6. Google Cloud Console에서 리디렉션 URI를 `jog.onlypearson.com` 기준으로 업데이트
+7. 프로필 페이지에서 Apple Health 연동 → 발급받은 시크릿/URL을 Health Auto Export 앱의 커스텀 헤더에 설정
 
 자세한 절차는 [`docs/deployment-rpi.md`](docs/deployment-rpi.md) 참고.
-
-### Home Assistant Add-on 배포 (대안)
-
-`docker compose` 대신 HAOS Supervisor 애드온 스토어로도 배포 가능하다. repo 루트의 `repository.yaml` + `jogpost/`(add-on용 `config.yaml`, `Dockerfile`, `run.sh`)가 이를 위한 구성이다.
-
-- `.github/workflows/docker-publish.yml`이 `main` push 시 앱 이미지를 `ghcr.io/bluewings109/jog-post`(amd64/arm64)로 publish
-- `jogpost/Dockerfile`은 그 이미지를 `FROM`으로 가져와 HA add-on 옵션(`/data/options.json`)을 환경변수로 변환하는 `run.sh` 래퍼만 얹음 (Supervisor가 설치 시점에 라즈베리파이에서 이 얇은 레이어만 로컬 빌드)
-- HA add-on은 단일 컨테이너 원칙이라 PostgreSQL은 별도 add-on에 의존 — 공식 저장소(`hassio-addons/repository`)엔 Postgres add-on이 없어 커뮤니티 표준인 Expaso의 "PostgreSQL + TimescaleDB"(`github.com/expaso/hassos-addons`)를 등록해서 사용. `docker-compose.prod.yml`의 `db` 서비스처럼 같이 묶을 수 없음
-
-자세한 절차는 [`docs/deployment-rpi.md`](docs/deployment-rpi.md#home-assistant-add-on으로-배포-대안) 참고.
 
 **⚠️ `jogpost/config.yaml`의 `version` 필드는 반드시 매번 올릴 것.** HA Supervisor는 이 값이 바뀌어야만 "업데이트 있음"으로 인식해 재빌드한다. `jogpost/Dockerfile`이 `ghcr.io/bluewings109/jog-post:latest`를 `FROM`으로 고정 태그 없이 참조하므로, `jogpost/` 디렉토리 자체를 안 건드리고 `backend/`나 `frontend/`만 수정해도(즉 앱 이미지만 바뀌어도) **`version`을 올리지 않으면 Supervisor가 새 이미지를 절대 다시 pull/빌드하지 않는다.** 백엔드/프론트엔드/애드온 파일 중 무엇을 바꾸든, main에 push하기 전에 `jogpost/config.yaml`의 `version`을 patch 올리는 걸 잊지 말 것.
 
