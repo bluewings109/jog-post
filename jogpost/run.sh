@@ -4,7 +4,9 @@ set -euo pipefail
 OPTIONS_FILE=/data/options.json
 
 get_option() {
-  jq -r ".$1 // empty" "$OPTIONS_FILE"
+  # jq's `//` treats `false` as falsy too, so a plain `.$1 // empty` would
+  # silently turn `false` into an empty string. Check for null explicitly instead.
+  jq -r ".\"$1\" as \$v | if \$v == null then \"\" else (\$v | tostring) end" "$OPTIONS_FILE"
 }
 
 export GOOGLE_CLIENT_ID
